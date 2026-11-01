@@ -1,0 +1,242 @@
+:root {
+  color-scheme: light;
+  --ink: #14211c;
+  --muted: #24312b;
+  --paper: #f6f3ec;
+  --card: #fffdf8;
+  --line: #d9d1c3;
+  --green: #12382c;
+  --focus: #0b3d8f;
+  --red-bg: #fde2e1;
+  --red-ink: #6e1219;
+  --yellow-bg: #fff4cc;
+  --yellow-ink: #5a3e00;
+  --neutral-bg: #e8eef6;
+  --neutral-ink: #172033;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+body { min-height: 100vh; }
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.skip {
+  position: absolute;
+  left: 12px;
+  top: -40px;
+  background: #fff;
+  padding: 8px;
+}
+
+.skip:focus { top: 12px; }
+
+.page {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  padding: 16px 16px 48px;
+}
+
+header.top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  line-height: 1.2;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--muted);
+  max-width: 36rem;
+}
+
+.total {
+  margin: 20px 0 0;
+  font-size: clamp(2.4rem, 8vw, 4rem);
+  line-height: 1;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.annual {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.banner {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.banner p { margin: 0; }
+
+.banner-red { background: var(--red-bg); color: var(--red-ink); }
+.banner-yellow { background: var(--yellow-bg); color: var(--yellow-ink); }
+.banner-neutral { background: var(--neutral-bg); color: var(--neutral-ink); }
+
+.banner-actions, .row, .suggestion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.card, .suggestion, .panel, dialog {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  min-width: 0;
+}
+
+.card-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.plan-name {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.price {
+  margin: 10px 0 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+}
+
+.logo, .mono {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex: 0 0 auto;
+}
+
+.mono {
+  display: grid;
+  place-items: center;
+  background: var(--green);
+  color: white;
+  font-weight: 700;
+}
+
+button, .button {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--green);
+  background: var(--green);
+  color: white;
+  padding: 0 14px;
+  font: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+button.quiet, a.quiet {
+  background: transparent;
+  color: var(--ink);
+}
+
+.menu-button {
+  width: 44px;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 1.4rem;
+}
+
+.menu {
+  position: relative;
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: 48px;
+  z-index: 2;
+  min-width: 220px;
+  display: grid;
+  gap: 8px;
+}
+
+.footer {
+  margin-top: 24px;
+  color: var(--muted);
+}
+
+.toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  background: var(--ink);
+  color: white;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.toast button { background: white; color: var(--ink); border-color: white; }
+
+dialog {
+  border: 1px solid var(--line);
+  width: min(420px, calc(100% - 32px));
+}
+
+dialog::backdrop { background: rgba(20, 33, 28, 0.45); }
+
+label { display: grid; gap: 6px; font-weight: 650; }
+
+input, select {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  padding: 0 12px;
+  font: inherit;
+  background: white;
+  color: var(--ink);
+}
+
+.login { max-width: 28rem; }
+
+@media (min-width: 900px) {
+  .cards { grid-template-columns: 1fr 1fr; }
+  .page { padding: 28px 24px 64px; }
+  .toast { left: auto; width: min(420px, 100%); right: 24px; }
+}
