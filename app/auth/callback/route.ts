@@ -1,26 +1,33 @@
-import { NextResponse } from "next/server";
-import { LAST_SEEN_COOKIE } from "@/lib/security";
+import type { NextRequest } from "next/server";
+import { handleAuthCallback } from "@/lib/http/auth-callback";
+import { createRequestAuth } from "@/lib/supabase/request-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const code = url.searchParams.get("code");
-  if (!code) return NextResponse.redirect(new URL("/login?erro=link", url.origin));
-  const { createClient } = await import("@/lib/supabase/server");
-  const supabase = await createClient();
-  if (!supabase) return NextResponse.redirect(new URL("/login?erro=config", url.origin));
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) return NextResponse.redirect(new URL("/login?erro=link", url.origin));
-  const response = NextResponse.redirect(new URL("/", url.origin));
-  response.cookies.set(LAST_SEEN_COOKIE, String(Date.now()), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 30 * 24 * 60 * 60,
+async function complete(request: NextRequest) {
+  const { supabase, cookies, secure } = createRequestAuth(request);
+  return handleAuthCallback({
+    requestUrl: request.url,
+    allowedEmail: process.env.ALLOWED_EMAIL,
+    secure,
+    sessionCookies: cookies,
+    verifyTokenHash: async ({ token_hash, type }) => {
+      if (!supabase) return { email: null, error: "config" };
+      const { data, error } = await supabase.auth.verifyOtp({ token_hash, type });
+      return { email: data?.user?.email ?? null, error: error ? "invalid" : null };
+    },
+    exchangeCode: async (code) => {
+      if (!supabase) return { email: null, error: "config" };
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      return { email: data?.user?.email ?? null, error: error ? "invalid" : null };
+    },
+    signOut: async () => {
+      if (supabase) await supabase.auth.signOut({ scope: "global" });
+    },
   });
-  response.headers.set("Cache-Control", "no-store");
-  return response;
+}
+
+export function GET(request: NextRequest) {
+  return complete(request);
 }

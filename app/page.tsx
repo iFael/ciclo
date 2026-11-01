@@ -9,9 +9,13 @@ export default async function HomePage() {
   if (e2eBypass()) return <PlansScreen />;
   if (!publicSupabase()) {
     return (
-      <main className="page" data-testid="screen">
-        <h1>Meus planos</h1>
-        <p data-testid="load-error">Configuração incompleta no servidor.</p>
+      <main className="sheet" data-testid="screen">
+        <header className="top">
+          <h1>Meus planos</h1>
+        </header>
+        <div className="sheet-body">
+          <p className="status status-error" data-testid="load-error">Configuração incompleta no servidor.</p>
+        </div>
       </main>
     );
   }

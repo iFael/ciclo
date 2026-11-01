@@ -86,7 +86,7 @@ test("mostra o total, o plano e o link de gerenciar", async ({ page }) => {
   await expect(page.getByTestId("footer-sync")).toHaveText("Atualizado há 2 h");
 });
 
-test("empilha os cartões no celular e usa duas colunas no desktop", async ({ page }) => {
+test("empilha os cartões no celular e mantém uma coluna central no desktop", async ({ page }) => {
   await mockPlans(page, model([card({}), card({ id: "sub-2", service: "claude", planName: "Claude Pro" })]));
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/");
@@ -95,12 +95,16 @@ test("empilha os cartões no celular e usa duas colunas no desktop", async ({ pa
   const first = await mobile[0].boundingBox();
   const second = await mobile[1].boundingBox();
   expect(second!.y).toBeGreaterThan(first!.y + 40);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 
   await page.setViewportSize({ width: 1280, height: 800 });
+  const screen = await page.getByTestId("screen").boundingBox();
+  expect(screen!.width).toBeLessThanOrEqual(440);
+  expect(screen!.x).toBeGreaterThan(200);
   const desktop = await page.getByTestId("plan-card").all();
   const left = await desktop[0].boundingBox();
   const right = await desktop[1].boundingBox();
-  expect(Math.abs(left!.y - right!.y)).toBeLessThan(20);
+  expect(right!.y).toBeGreaterThan(left!.y + 40);
 });
 
 test("remover persiste depois de recarregar e desfazer traz o plano de volta", async ({ page }) => {

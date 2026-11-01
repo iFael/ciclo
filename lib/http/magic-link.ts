@@ -1,4 +1,5 @@
 import { canSendMagicLink } from "@/lib/env";
+import { HttpFailure } from "@/lib/http/failure";
 import { ConfigError } from "@/lib/security";
 
 export async function handleMagicLink(
@@ -23,7 +24,10 @@ export async function handleMagicLink(
     await input.send(email.trim(), input.redirectTo);
     return Response.json({ ok: true });
   } catch (error) {
-    const message = error instanceof ConfigError ? error.message : "Não foi possível enviar o link.";
-    return Response.json({ error: message }, { status: 503 });
+    if (error instanceof ConfigError) return Response.json({ error: error.message }, { status: 503 });
+    if (error instanceof HttpFailure && error.status === 429) {
+      return Response.json({ error: "Muitas tentativas. Espere um pouco e tente de novo." }, { status: 429 });
+    }
+    return Response.json({ error: "Não foi possível enviar o link." }, { status: 503 });
   }
 }
