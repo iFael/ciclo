@@ -1,13 +1,20 @@
+import { Brand } from "@/components/brand";
 import { LoginForm } from "@/components/login-form";
+import { loginErrorFromQuery } from "@/lib/login-feedback";
 
 export const dynamic = "force-dynamic";
 
-export default function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ erro?: string | string[] }> }) {
+  const params = await searchParams;
+  const code = Array.isArray(params.erro) ? params.erro[0] : params.erro;
   return (
-    <main className="page">
-      <h1>Entrar no Ciclo</h1>
-      <p>Suas assinaturas, encontradas automaticamente no seu cartão.</p>
-      <LoginForm />
+    <main className="sheet">
+      <header className="top login-top">
+        <Brand />
+      </header>
+      <div className="sheet-body login-body">
+        <LoginForm initialError={loginErrorFromQuery(code)} />
+      </div>
     </main>
   );
 }

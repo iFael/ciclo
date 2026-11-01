@@ -1,4 +1,5 @@
 import { magicLinkRedirect } from "@/lib/env";
+import { HttpFailure } from "@/lib/http/failure";
 import { handleMagicLink } from "@/lib/http/magic-link";
 import { ConfigError } from "@/lib/security";
 
@@ -18,7 +19,11 @@ export async function POST(request: Request) {
         email,
         options: { emailRedirectTo: redirectTo },
       });
-      if (error) throw new Error("magic_link_failed");
+      if (error) {
+        const status = typeof error === "object" && error && "status" in error ? Number((error as { status?: number }).status) : 0;
+        if (status === 429) throw new HttpFailure(429);
+        throw new Error("magic_link_failed");
+      }
     },
   });
 }

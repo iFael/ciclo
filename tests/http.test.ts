@@ -3,6 +3,7 @@ import { setDepsForTests, type AppDeps } from "@/lib/deps";
 import { handleCron } from "@/lib/http/cron";
 import { handleHealth } from "@/lib/http/health";
 import { handleLogout } from "@/lib/http/logout";
+import { HttpFailure } from "@/lib/http/failure";
 import { handleMagicLink } from "@/lib/http/magic-link";
 import { handleWebhook } from "@/lib/http/webhook";
 import { createMemoryStore } from "@/lib/memory-store";
@@ -221,6 +222,15 @@ describe("session", () => {
     });
     expect(allowed.status).toBe(200);
     expect(calls).toEqual(["Owner@Example.com"]);
+    const limited = await handleMagicLink(request("http://localhost/api/auth/magic-link", { method: "POST", body: JSON.stringify({ email: "owner@example.com" }) }), {
+      allowedEmail: "owner@example.com",
+      redirectTo: "http://localhost/auth/callback",
+      send: async () => {
+        throw new HttpFailure(429);
+      },
+    });
+    expect(limited.status).toBe(429);
+    expect(((await limited.json()) as { error: string }).error).toMatch(/Muitas tentativas/);
   });
 
   it("clears the session cookie on logout", async () => {

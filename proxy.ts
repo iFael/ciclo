@@ -5,14 +5,26 @@ import { endAllSessions, LAST_SEEN_COOKIE, sessionExpired } from "@/lib/security
 
 const PUBLIC_PREFIXES = ["/login", "/auth", "/api/webhooks/pluggy", "/api/cron/sync", "/api/health"];
 
-function isPublic(pathname: string): boolean {
-  if (pathname.startsWith("/logos/") || pathname === "/favicon.ico" || pathname === "/icon.svg") return true;
+const PUBLIC_EXACT = new Set([
+  "/api/auth/magic-link",
+  "/api/auth/verify-code",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/offline.html",
+  "/apple-touch-icon.png",
+  "/favicon.ico",
+  "/icon.svg",
+]);
+
+export function isPublicPath(pathname: string): boolean {
+  if (pathname.startsWith("/logos/") || pathname.startsWith("/icons/")) return true;
+  if (PUBLIC_EXACT.has(pathname)) return true;
   return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (pathname.startsWith("/_next") || isPublic(pathname)) return NextResponse.next();
+  if (pathname.startsWith("/_next") || isPublicPath(pathname)) return NextResponse.next();
   if (e2eBypass() && (pathname === "/" || pathname.startsWith("/api/plans") || pathname.startsWith("/api/auth") || pathname.startsWith("/api/account"))) {
     const response = NextResponse.next();
     response.headers.set("Cache-Control", "no-store");
