@@ -1,0 +1,44 @@
+name: backup
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump, encrypt and upload
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          test -n "$SUPABASE_DB_URL" || { echo "SUPABASE_DB_URL missing"; exit 1; }
+          test -n "$BACKUP_ENCRYPTION_KEY" || { echo "BACKUP_ENCRYPTION_KEY missing"; exit 1; }
+          test -n "$SUPABASE_URL" || { echo "SUPABASE_URL missing"; exit 1; }
+          test -n "$SUPABASE_SERVICE_ROLE_KEY" || { echo "SUPABASE_SERVICE_ROLE_KEY missing"; exit 1; }
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          pg_dump "$SUPABASE_DB_URL" --data-only --no-owner \
+            --table=public.connections \
+            --table=public.transactions \
+            --table=public.subscriptions \
+            --table=public.charges \
+            --table=public.ignored_descriptors \
+            --table=public.reminders_sent \
+            > dump.sql
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:BACKUP_ENCRYPTION_KEY -in dump.sql -out dump.sql.enc
+          rm dump.sql
+          name="$(date -u +%Y%m%dT%H%M%SZ).sql.enc"
+          curl --fail-with-body -X POST "$SUPABASE_URL/storage/v1/object/ciclo-backups/$name" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/octet-stream" \
+            -H "x-upsert: true" \
+            --data-binary @dump.sql.enc
+          rm dump.sql.enc
