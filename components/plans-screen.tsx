@@ -779,12 +779,16 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                           </p>
                         </div>
                         <div className={cn("flex gap-2", desktop ? "items-center gap-1.5" : "mt-4")}>
-                          {card.manageUrl && (
+                          {card.manageUrl ? (
                             <Button asChild className={desktop ? "h-[38px] px-4" : "h-[42px] flex-1"}>
                               <a data-testid="manage" href={card.manageUrl} target="_blank" rel="noopener noreferrer" aria-label={card.manageLabel}>
                                 {card.manageButton ?? "Gerenciar"}
                                 <ExternalLink className="size-3.5" />
                               </a>
+                            </Button>
+                          ) : (
+                            <Button variant="outline" data-testid="add-manage-link" className={desktop ? "h-[38px] px-4" : "h-[42px] flex-1"} onClick={() => setEditingLogo(card.id)}>
+                              Adicionar link
                             </Button>
                           )}
                           {desktop ? (
