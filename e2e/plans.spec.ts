@@ -682,3 +682,67 @@ test("cada aba tem um estado vazio com caminho para a outra", async ({
   await expect(page).toHaveURL(/aba=assinaturas/);
   await expect(page.getByTestId("plan-card")).toHaveCount(1);
 });
+
+test("o botão Gerenciar mostra onde a assinatura é cobrada e a sugestão da Apple já vem escolhida", async ({ page }) => {
+  const cards = [
+    { ...card({}), manageButton: "Gerenciar no site" },
+    {
+      ...card({
+        id: "sub-2",
+        planName: "ChatGPT Plus",
+        manageUrl: "https://apps.apple.com/account/subscriptions",
+        manageLabel: "Gerenciar ChatGPT Plus na Apple, abre em nova aba",
+      }),
+      channel: "apple",
+      manageButton: "Gerenciar na Apple",
+    },
+    {
+      ...card({
+        id: "sub-3",
+        planName: "Duolingo",
+        manageUrl: "https://play.google.com/store/account/subscriptions",
+        manageLabel: "Gerenciar Duolingo no Google Play, abre em nova aba",
+      }),
+      channel: "google-play",
+      manageButton: "Gerenciar no Google Play",
+    },
+  ];
+  const posted: unknown[] = [];
+  await page.route("**/api/plans", async (route) => {
+    if (route.request().method() === "POST") posted.push(route.request().postDataJSON());
+    await route.fulfill({
+      json: {
+        ...model(cards),
+        suggestions: [
+          {
+            id: "s-apple",
+            planName: "Assinatura via Apple",
+            label: "2 meses seguidos",
+            checked: false,
+            priceLabel: "R$ 99,90/mês",
+            apple: true,
+            appleGuess: {
+              service: "chatgpt",
+              serviceName: "ChatGPT",
+              planName: "ChatGPT Plus",
+              reason: "Parece ChatGPT Plus: a cobrança direta parou em 20/09 e esta, pela Apple, começou em 25/09.",
+              replaces: "sub-old",
+            },
+          },
+        ],
+      },
+    });
+  });
+  await page.goto("/");
+  const links = page.getByTestId("manage");
+  await expect(links).toHaveText(["Gerenciar no site", "Gerenciar na Apple", "Gerenciar no Google Play"]);
+  await expect(links.nth(1)).toHaveAttribute("href", "https://apps.apple.com/account/subscriptions");
+  await expect(links.nth(2)).toHaveAttribute("href", "https://play.google.com/store/account/subscriptions");
+
+  await openTab(page, "sugestoes");
+  await expect(page.getByTestId("apple-picker")).toHaveValue("chatgpt");
+  await expect(page.getByTestId("apple-guess")).toContainText("Parece ChatGPT Plus");
+  await page.getByTestId("suggestion-yes").click();
+  await expect.poll(() => posted.length).toBe(1);
+  expect(posted[0]).toMatchObject({ action: "pick-apple", id: "s-apple", service: "chatgpt", replaces: "sub-old" });
+});

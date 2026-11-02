@@ -104,7 +104,11 @@ export type ScreenCard = {
   company: string;
   priceLabel: string;
   nextChargeLabel: string;
+  /** Who bills the plan: the App Store, Google Play or the service itself. */
+  channel: "apple" | "google-play" | "direct";
   manageUrl: string | null;
+  /** Visible text: "Gerenciar na Apple", "Gerenciar no Google Play" or "Gerenciar no site". */
+  manageButton: string;
   manageLabel: string;
   removeConfirm: string;
   autoConfirmed: boolean;
@@ -122,6 +126,8 @@ export type ScreenSuggestion = {
   checked: boolean;
   priceLabel: string;
   apple: boolean;
+  /** Prefilled pick for an App Store charge, with the reason shown to the user. */
+  appleGuess: { service: string; serviceName: string; planName: string; reason: string; replaces: string | null } | null;
   logoUrl: string | null;
   logoFallback: boolean;
   confidence: { score: number; label: string; checks: ScreenCheck[] };

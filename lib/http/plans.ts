@@ -27,7 +27,7 @@ export async function handlePlans(request: Request): Promise<Response> {
     const state = await deps.store.load();
     const cache = storeLogoCache(deps.store);
     if (request.method === "GET") return Response.json(await prepareScreen(state, deps.now(), cache));
-    const body = (await request.json()) as Partial<PlanAction> & { service?: string; domain?: string };
+    const body = (await request.json()) as Partial<PlanAction> & { service?: string; domain?: string; replaces?: unknown };
     if (!body.action || !ACTIONS.has(body.action) || !("id" in body) || !body.id) {
       return Response.json({ error: "Ação inválida." }, { status: 400 });
     }
@@ -47,7 +47,8 @@ export async function handlePlans(request: Request): Promise<Response> {
       });
       return Response.json(await prepareScreen(state, deps.now(), cache));
     }
-    const next = applyAction(state, body as PlanAction, deps.now());
+    const command = { ...body, replaces: typeof body.replaces === "string" ? body.replaces : undefined } as PlanAction;
+    const next = applyAction(state, command, deps.now());
     await deps.store.save(next);
     return Response.json(await prepareScreen(next, deps.now(), cache));
   } catch (error) {
