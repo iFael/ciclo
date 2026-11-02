@@ -19,13 +19,11 @@ export default async function HomePage({
   if (e2eBypass()) return <PlansScreen initialAba={aba} />;
   if (!publicSupabase()) {
     return (
-      <main className="sheet" data-testid="screen">
-        <header className="top">
-          <h1>Meus planos</h1>
-        </header>
-        <div className="sheet-body">
-          <p className="status status-error" data-testid="load-error">Configuração incompleta no servidor.</p>
-        </div>
+      <main className="mx-auto min-h-dvh max-w-6xl px-4 py-8 sm:px-6 lg:px-8" data-testid="screen">
+        <h1 className="text-3xl font-bold tracking-[-0.035em]">Meus planos</h1>
+        <p className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive" data-testid="load-error">
+          Configuração incompleta no servidor.
+        </p>
       </main>
     );
   }
