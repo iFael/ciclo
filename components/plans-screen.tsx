@@ -522,7 +522,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
           </section>
         )}
 
-        {ready && model && !desktop && tab === "assinaturas" && (
+        {ready && model && !desktop && (
           <section aria-label="Resumo" className="rise relative mt-4 overflow-hidden rounded-[20px] border border-hero-border bg-hero p-5 text-hero-foreground">
             <HeroGlow />
             <Eyebrow className="text-hero-muted">Gasto mensal</Eyebrow>
@@ -540,26 +540,6 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
             />
           </section>
         )}
-        {ready && model && !desktop && tab === "sugestoes" && (
-          <section aria-label="Resumo" className="rise relative mt-4 overflow-hidden rounded-[20px] border border-hero-border bg-hero p-5 text-hero-foreground">
-            <HeroGlow />
-            <Eyebrow className="text-hero-muted">Para revisar</Eyebrow>
-            <p className="mt-2.5 text-[40px] font-bold leading-none tracking-[-0.04em]">
-              {model.suggestions.length}
-              <span className="ml-2 text-base font-medium tracking-normal text-hero-muted">
-                {model.suggestions.length === 1 ? "possível plano" : "possíveis planos"}
-              </span>
-            </p>
-            <p className="mt-2 text-[13.5px] text-hero-muted">Confirme o que é assinatura para entrar no total do mês.</p>
-            <MiniStats
-              items={[
-                { label: "Ativas", value: plural(model.cards.length, "assinatura", "assinaturas") },
-                { label: "No total", value: model.cards.length > 0 ? model.monthlyLabel : "—" },
-              ]}
-            />
-          </section>
-        )}
-
         {ready && (connectionBanner || model?.firstRead) && (
           <div className="mt-5 space-y-3">
             {connectionBanner && (
