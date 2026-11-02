@@ -21,9 +21,9 @@ const rows: StoredTx[] = [
 describe("statement search", () => {
   it("groups hits by merchant across the whole window and skips noise", () => {
     const groups = searchStatement(emptyState(), rows, "ifood");
-    expect(groups.map((group) => group.key)).toEqual(["IFOOD CLUBE", "IFOOD"]);
-    expect(groups[0]).toMatchObject({ name: "iFood Clube", count: 2, months: 2, amountLabel: "R$ 9,90", lastLabel: "10/09/2026", status: null });
-    expect(groups[1]).toMatchObject({ count: 2, amountLabel: "R$ 54,30 a R$ 81,10" });
+    // Every spelling of the same service lands in one group.
+    expect(groups.map((group) => group.key)).toEqual(["svc:ifood-clube"]);
+    expect(groups[0]).toMatchObject({ name: "iFood Clube", count: 4, months: 4, amountLabel: "R$ 9,90 a R$ 81,10", lastLabel: "10/09/2026", status: null });
     expect(searchStatement(emptyState(), rows, "i")).toEqual([]);
     expect(searchStatement(emptyState(), rows, "granfaculdade")[0]?.key).toBe("GRAN FACULDADE");
   });
@@ -39,6 +39,18 @@ describe("statement search", () => {
     const next = [{ id: "g3", description: "MP*GRAN FACULDADE", chargeDate: "2026-10-30", amount: 199.9 }];
     const found = detect(next, state.ignoredDescriptors, today, knownMerchants(state.subscriptions));
     expect(found[0].merchantKey).toBe(state.subscriptions[0].merchantKey);
+  });
+
+  it("merges Apple bill spellings and confirms the latest price", () => {
+    const apple = [
+      tx("a1", "APPLE.COM/BILL", "2026-06-26", 5.9),
+      tx("a2", "APPLECOMBILL", "2026-07-26", 5.9),
+      tx("a3", "APPLE.COM/BILL", "2026-03-02", 49.9),
+    ];
+    const groups = searchStatement(emptyState(), apple, "apple");
+    expect(groups.map((group) => [group.key, group.count])).toEqual([["apple", 3]]);
+    const state = confirmFromSearch(emptyState(), apple, "apple", "2026-11-01");
+    expect(state.subscriptions.map((item) => [item.merchantKey, item.status])).toEqual([["apple:590", "confirmed"]]);
   });
 
   it("does nothing for a key with no charges", () => {
