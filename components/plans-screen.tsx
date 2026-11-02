@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Check, ExternalLink, LogOut, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
-import { Brand, CycleMark } from "@/components/brand";
+import { Brand, CycleMark, LoadingScreen } from "@/components/brand";
 import { StatementSearch } from "@/components/statement-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
@@ -498,11 +498,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
           Suas assinaturas, encontradas automaticamente no seu cartão.
         </p>
 
-        {!model && !error && (
-          <p data-testid="loading" className="mt-6 text-sm text-muted-foreground">
-            Carregando planos…
-          </p>
-        )}
+        {!model && !error && <LoadingScreen />}
         {error && (
           <p data-testid="load-error" role="alert" className="mt-6 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
             Não foi possível carregar seus planos.
@@ -1106,7 +1102,7 @@ function EmptyState({
   return (
     <div data-testid={testId} className="flex flex-col items-center rounded-2xl border border-dashed bg-card/50 px-6 py-12 text-center">
       <span aria-hidden="true" className="grid size-12 place-items-center rounded-xl bg-brand text-brand-foreground">
-        <CycleMark className="size-6" />
+        <CycleMark className="size-7" animated />
       </span>
       {legacy ? (
         <p data-testid="empty" className="mt-4 text-base font-semibold">

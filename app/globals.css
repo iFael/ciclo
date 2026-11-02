@@ -206,3 +206,120 @@
     display: none;
   }
 }
+
+/* Logo: the arrow renews around the coin, the coin settles at the end of each turn.
+   Calm (header, empty states): one turn, then rest, every 10 s.
+   Loading: the same turn, back to back, with a soft halo behind the tile. */
+@keyframes logo-turn {
+  0% {
+    transform: rotate(0deg);
+  }
+  20%,
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes logo-coin {
+  0%,
+  18% {
+    transform: scale(1);
+  }
+  23% {
+    transform: scale(1.22);
+  }
+  29%,
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes logo-turn-fast {
+  0% {
+    transform: rotate(0deg);
+  }
+  70%,
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes logo-coin-fast {
+  0%,
+  62% {
+    transform: scale(1);
+  }
+  76% {
+    transform: scale(1.2);
+  }
+  90%,
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes loading-halo {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.08;
+  }
+}
+.logo-live .logo-ring,
+.logo-live .logo-coin,
+.logo-loading .logo-ring,
+.logo-loading .logo-coin {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+.logo-live .logo-ring {
+  animation: logo-turn 10s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.logo-live .logo-coin {
+  animation: logo-coin 10s var(--spring, ease-out) infinite;
+}
+.logo-loading .logo-ring {
+  animation: logo-turn-fast 1.9s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.logo-loading .logo-coin {
+  animation: logo-coin-fast 1.9s var(--spring, ease-out) infinite;
+}
+.loading-halo {
+  animation: loading-halo 1.9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-live .logo-ring,
+  .logo-live .logo-coin,
+  .logo-loading .logo-ring,
+  .logo-loading .logo-coin,
+  .loading-halo {
+    animation: none;
+  }
+}
+
+/* Loading lines: four app tips take turns, 3 s each, with no script. */
+@keyframes loading-line {
+  0% { opacity: 0; transform: translateY(8px); }
+  5%, 22% { opacity: 1; transform: translateY(0); }
+  27%, 100% { opacity: 0; transform: translateY(-8px); }
+}
+.loading-line {
+  opacity: 0;
+  animation: loading-line 12s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-line { animation: none; }
+  .loading-line:first-child { opacity: 1; }
+}
+
+/* PWA: the screen stays fixed. No double-tap zoom, no pinch, no zoom on focusing a field. */
+html,
+body {
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+}
+input,
+select,
+textarea {
+  font-size: max(16px, 1em);
+}
