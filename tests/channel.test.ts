@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyAction } from "@/lib/actions";
-import { billingChannel, guessAppleService, isGooglePlayBill } from "@/lib/channel";
+import { billingChannel, guessAppleService, isGooglePlayBill, trustedCatalogLink } from "@/lib/channel";
 import { detect, type CandidateTx } from "@/lib/matching";
 import { buildScreen } from "@/lib/screen";
 import { emptyState } from "@/lib/store";
@@ -96,7 +96,37 @@ describe("billing channel", () => {
   });
 });
 
+describe("trusted catalog management links", () => {
+  it("accepts only https pages beyond the home page", () => {
+    expect(trustedCatalogLink("https://claude.ai/settings/billing")).toBe("https://claude.ai/settings/billing");
+    expect(trustedCatalogLink("https://chatgpt.com/#settings/Subscription")).toBe("https://chatgpt.com/#settings/Subscription");
+    expect(trustedCatalogLink("https://querobolsa.com.br")).toBeNull();
+    expect(trustedCatalogLink("https://faculdade.grancursosonline.com.br/")).toBeNull();
+    expect(trustedCatalogLink("http://claude.ai/settings/billing")).toBeNull();
+    expect(trustedCatalogLink("https://querobolsa.com.br/?plan=1")).toBeNull();
+    expect(trustedCatalogLink("not a url")).toBeNull();
+    expect(trustedCatalogLink(null)).toBeNull();
+  });
+});
+
 describe("manage button", () => {
+  it("does not offer management or cancellation instructions without a link", () => {
+    const unknown = sub({
+      service: "unknown",
+      planName: "Plano desconhecido",
+      merchantKey: "unknown-merchant",
+      descriptors: ["UNKNOWN MERCHANT 234"],
+    });
+    const current = state([unknown], [charge("sub-1", "2026-10-20", 103)]);
+    const card = buildScreen(current, NOW).cards[0];
+    expect(card.manageUrl).toBeNull();
+    expect(card.manageLabel).toBe("");
+    expect(card.removeConfirm).not.toContain("use Gerenciar");
+
+    const updated = applyAction(current, { action: "set-manage-url", id: "sub-1", url: "exemplo.com.br/minha-assinatura" }, NOW);
+    expect(buildScreen(updated, NOW).cards[0].manageUrl).toBe("https://exemplo.com.br/minha-assinatura");
+  });
+
   it("sends a direct plan to the service's site", () => {
     const model = buildScreen(state([sub()], [charge("sub-1", "2026-10-20", 103)]), NOW);
     expect(model.cards[0].channel).toBe("direct");
