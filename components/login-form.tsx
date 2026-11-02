@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LOGIN_COPY, readMagicLinkResponse, readVerifyResponse } from "@/lib/login-feedback";
+import { EMAIL_CODE_PATTERN, LOGIN_COPY, readMagicLinkResponse, readVerifyResponse } from "@/lib/login-feedback";
 
 export function LoginForm({ initialError = "" }: { initialError?: string }) {
   const [email, setEmail] = useState("");
@@ -28,7 +28,7 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
         onSubmit={async (event) => {
           event.preventDefault();
           if (pending) return;
-          if (!/^\d{6}$/.test(code)) {
+          if (!EMAIL_CODE_PATTERN.test(code)) {
             showError(LOGIN_COPY.needCode);
             return;
           }
@@ -62,7 +62,7 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
           ) : (
             <span data-testid="login-status">{LOGIN_COPY.sent}</span>
           )}{" "}
-          O link abre no navegador. Se o Ciclo está na Tela de Início, digite o código de 6 dígitos do e-mail.
+          O link abre no navegador. Se o Ciclo está na Tela de Início, digite o código do e-mail.
         </p>
         <label className="field" htmlFor="login-code">
           Código
@@ -74,18 +74,18 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
             autoComplete="one-time-code"
             autoCapitalize="none"
             spellCheck={false}
-            pattern="\d{6}"
-            maxLength={6}
+            pattern="\d{6,10}"
+            maxLength={10}
             enterKeyHint="done"
             value={code}
             aria-invalid={tone === "error" && message ? true : undefined}
             onChange={(event) => {
-              setCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+              setCode(event.target.value.replace(/\D/g, "").slice(0, 10));
               if (tone === "error") setMessage("");
             }}
           />
         </label>
-        <button className="block" data-testid="login-code-submit" type="submit" disabled={pending !== null || code.length !== 6} aria-busy={pending === "code"}>
+        <button className="block" data-testid="login-code-submit" type="submit" disabled={pending !== null || !EMAIL_CODE_PATTERN.test(code)} aria-busy={pending === "code"}>
           {pending === "code" ? "Confirmando…" : "Confirmar código"}
         </button>
         {message && (

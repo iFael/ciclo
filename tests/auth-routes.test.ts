@@ -83,4 +83,27 @@ describe("verify-code route", () => {
     expect(verifyOtp).toHaveBeenCalledWith({ email: "owner@example.com", token: "654321", type: "email" });
     expect(response.status).toBe(200);
   });
+
+  it("forwards an 8-digit code and rejects a 5-digit code before verifyOtp", async () => {
+    verifyOtp.mockResolvedValue({ data: { user: { email: "owner@example.com" }, session: {} }, error: null });
+    const ok = await verifyCode(
+      new NextRequest("https://ciclo-peach.vercel.app/api/auth/verify-code", {
+        method: "POST",
+        body: JSON.stringify({ email: "owner@example.com", token: "91355226" }),
+      }),
+    );
+    expect(ok.status).toBe(200);
+    expect(verifyOtp).toHaveBeenCalledWith({ email: "owner@example.com", token: "91355226", type: "email" });
+
+    verifyOtp.mockClear();
+    const bad = await verifyCode(
+      new NextRequest("https://ciclo-peach.vercel.app/api/auth/verify-code", {
+        method: "POST",
+        body: JSON.stringify({ email: "owner@example.com", token: "12345" }),
+      }),
+    );
+    expect(bad.status).toBe(400);
+    expect(((await bad.json()) as { error: string }).error).toBe("Digite o código do e-mail.");
+    expect(verifyOtp).not.toHaveBeenCalled();
+  });
 });

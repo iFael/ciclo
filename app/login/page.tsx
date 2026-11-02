@@ -8,7 +8,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const params = await searchParams;
   const code = Array.isArray(params.erro) ? params.erro[0] : params.erro;
   return (
-    <main className="sheet">
+    <main className="sheet login-sheet">
       <header className="top login-top">
         <Brand />
       </header>

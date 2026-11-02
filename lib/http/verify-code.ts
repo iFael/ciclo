@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { canSendMagicLink } from "@/lib/env";
 import { applyAuthCookies, forgetSession, rememberSession, type PendingCookie } from "@/lib/http/cookies";
+import { EMAIL_CODE_PATTERN, LOGIN_COPY } from "@/lib/login-feedback";
 
 export type CodeResult = { email: string | null; error: "invalid" | "config" | null; status?: number };
 
@@ -29,7 +30,7 @@ export async function handleVerifyCode(
   } catch {
     return json({ error: "Informe o código." }, 400);
   }
-  if (!/^\d{6}$/.test(token)) return json({ error: "Digite o código de 6 dígitos." }, 400);
+  if (!EMAIL_CODE_PATTERN.test(token)) return json({ error: LOGIN_COPY.needCode }, 400);
 
   const decision = canSendMagicLink(email, input.allowedEmail);
   if (decision === "missing-config") return json({ error: "Configuração incompleta: ALLOWED_EMAIL" }, 503);

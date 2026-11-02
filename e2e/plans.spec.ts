@@ -86,25 +86,61 @@ test("mostra o total, o plano e o link de gerenciar", async ({ page }) => {
   await expect(page.getByTestId("footer-sync")).toHaveText("Atualizado há 2 h");
 });
 
-test("empilha os cartões no celular e mantém uma coluna central no desktop", async ({ page }) => {
-  await mockPlans(page, model([card({}), card({ id: "sub-2", service: "claude", planName: "Claude Pro" })]));
+test("empilha no celular e abre em colunas no tablet e no desktop", async ({ page }) => {
+  const cards = [card({}), card({ id: "sub-2", service: "claude", planName: "Claude Pro" })];
+  await mockPlans(page, {
+    ...model(cards),
+    suggestions: [
+      { id: "s1", planName: "Claude Pro", label: "Pode ser recorrente", checked: false, priceLabel: "≈ R$ 113,85/mês", apple: false },
+      { id: "s2", planName: "Assinatura via Apple", label: "Pode ser recorrente", checked: false, priceLabel: "≈ R$ 1,90/mês", apple: true },
+    ],
+    banners: [{ id: "suggestions", tone: "neutral", text: "Encontramos 2 possíveis assinaturas", actions: [] }],
+  });
+
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/");
   await expect(page.getByTestId("plan-card")).toHaveCount(2);
+  const mobileScreen = await page.getByTestId("screen").boundingBox();
+  expect(mobileScreen!.width).toBeGreaterThan(370);
+  expect(mobileScreen!.width).toBeLessThanOrEqual(391);
   const mobile = await page.getByTestId("plan-card").all();
-  const first = await mobile[0].boundingBox();
-  const second = await mobile[1].boundingBox();
-  expect(second!.y).toBeGreaterThan(first!.y + 40);
+  const mobileFirst = await mobile[0].boundingBox();
+  const mobileSecond = await mobile[1].boundingBox();
+  expect(mobileSecond!.y).toBeGreaterThan(mobileFirst!.y + 40);
+  expect(Math.abs(mobileFirst!.x - mobileSecond!.x)).toBeLessThan(8);
+  const mobileSuggestions = await page.getByTestId("suggestion").all();
+  const mobileSugA = await mobileSuggestions[0].boundingBox();
+  const mobileSugB = await mobileSuggestions[1].boundingBox();
+  expect(mobileSugB!.y).toBeGreaterThan(mobileSugA!.y + 40);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 
-  await page.setViewportSize({ width: 1280, height: 800 });
-  const screen = await page.getByTestId("screen").boundingBox();
-  expect(screen!.width).toBeLessThanOrEqual(440);
-  expect(screen!.x).toBeGreaterThan(200);
+  await page.setViewportSize({ width: 768, height: 900 });
+  const tabletScreen = await page.getByTestId("screen").boundingBox();
+  expect(tabletScreen!.width).toBeGreaterThan(740);
+  const tablet = await page.getByTestId("plan-card").all();
+  const tabletLeft = await tablet[0].boundingBox();
+  const tabletRight = await tablet[1].boundingBox();
+  expect(Math.abs(tabletLeft!.y - tabletRight!.y)).toBeLessThan(12);
+  expect(tabletRight!.x).toBeGreaterThan(tabletLeft!.x + 200);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const desktopScreen = await page.getByTestId("screen").boundingBox();
+  expect(desktopScreen!.width).toBeGreaterThan(1400);
+  expect(desktopScreen!.x).toBeLessThan(8);
+  const title = await page.getByTestId("page-title").boundingBox();
+  const total = await page.getByTestId("monthly-total").boundingBox();
+  expect(total!.x).toBeGreaterThan(title!.x + title!.width - 8);
   const desktop = await page.getByTestId("plan-card").all();
   const left = await desktop[0].boundingBox();
   const right = await desktop[1].boundingBox();
-  expect(right!.y).toBeGreaterThan(left!.y + 40);
+  expect(Math.abs(left!.y - right!.y)).toBeLessThan(12);
+  expect(right!.x).toBeGreaterThan(left!.x + 280);
+  const suggestions = await page.getByTestId("suggestion").all();
+  const sugLeft = await suggestions[0].boundingBox();
+  const sugRight = await suggestions[1].boundingBox();
+  expect(Math.abs(sugLeft!.y - sugRight!.y)).toBeLessThan(12);
+  expect(sugRight!.x).toBeGreaterThan(sugLeft!.x + 280);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 });
 
 test("remover persiste depois de recarregar e desfazer traz o plano de volta", async ({ page }) => {
