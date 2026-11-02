@@ -1,11 +1,13 @@
 import { resolveDeps } from "@/lib/deps";
 import { isAuthorized } from "@/lib/http/gate";
 import { isAggregator } from "@/lib/pluggy/map";
+import { pluggyIdSchema } from "@/lib/pluggy/schemas";
 import { prepareScreen } from "@/lib/present";
 import { ConfigError, safeLog } from "@/lib/security";
 import { storeLogoCache } from "@/lib/store";
+import { SyncStepError, syncItem } from "@/lib/sync";
 
-type Body = { action?: unknown; id?: unknown };
+type Body = { action?: unknown; id?: unknown; item?: unknown; renew?: unknown };
 
 const noStore = { "Cache-Control": "no-store" };
 
@@ -42,6 +44,24 @@ export async function handleConnections(request: Request): Promise<Response> {
       const aggregator = state.connections.find((row) => isAggregator(row.institution) && /^\d+$/.test(row.connectorId ?? ""));
       const selectedConnectorId = connection || !aggregator ? undefined : Number(aggregator.connectorId);
       return Response.json({ accessToken, updateItem: connection?.itemId, selectedConnectorId }, { headers: noStore });
+    }
+
+    // The widget hands back the item it created. Pluggy only answers for items of our own
+    // account, so an id that is not ours fails here, and only a signed-in session gets this far.
+    // This does not wait for the webhook, which can be late or not come at all.
+    if (body.action === "connected") {
+      const parsed = pluggyIdSchema.safeParse(body.item);
+      if (!parsed.success) return Response.json({ error: "Ação inválida." }, { status: 400 });
+      try {
+        await syncItem(deps, parsed.data, body.renew === true ? "item/updated" : "item/created");
+      } catch (error) {
+        const code = error instanceof SyncStepError ? error.step : "sync_failed";
+        console.info(JSON.stringify(safeLog({ count: 0, status: "error", errorCode: `connected_${code}` })));
+        return Response.json({ error: "Conectado na Pluggy, mas o Ciclo ainda não conseguiu ler. Tente de novo em alguns minutos." }, { status: 502 });
+      }
+      const after = await deps.store.load();
+      const screen = await prepareScreen(after, deps.now(), storeLogoCache(deps.store));
+      return Response.json({ ok: true, screen }, { headers: noStore });
     }
 
     if (body.action === "remove") {

@@ -63,17 +63,16 @@ export function ConnectionsDialog<M>({ open, onOpenChange, connections, onScreen
         countries: ["BR"],
         ...(updateItem ? { updateItem } : {}),
         ...(selectedConnectorId ? { selectedConnectorId } : {}),
-        // Pluggy tells the server through the webhook. Read the screen again until it shows up.
-        onSuccess: async () => {
-          onNotice(connection ? "Conexão renovada" : "Banco conectado", "Lendo os cartões. Isso leva alguns segundos.");
-          const before = JSON.stringify(connections);
-          for (let attempt = 0; attempt < 8; attempt += 1) {
-            await new Promise((resolve) => window.setTimeout(resolve, 3000));
-            const response = await fetch("/api/plans", { cache: "no-store" }).catch(() => null);
-            if (!response?.ok) continue;
-            const screen = (await response.json()) as M & { connections?: ScreenConnection[] };
-            onScreen(screen);
-            if (JSON.stringify(screen.connections ?? []) !== before) break;
+        // The widget returns the connection it made. The server reads it now instead of waiting for the webhook.
+        onSuccess: async ({ item }: { item: { id: string } }) => {
+          const title = connection ? "Conexão renovada" : "Banco conectado";
+          onNotice(title, "Lendo os cartões. Isso leva alguns segundos.");
+          try {
+            const result = await post<{ screen: M }>({ action: "connected", item: item.id, renew: Boolean(connection) });
+            onScreen(result.screen);
+            onNotice(title, "Os cartões já aparecem em Conexões.");
+          } catch (cause) {
+            onNotice("Conectado na Pluggy", cause instanceof Error ? cause.message : undefined);
           }
         },
         onError: () => onNotice("A Pluggy não concluiu a conexão", "Tente de novo em alguns minutos."),
