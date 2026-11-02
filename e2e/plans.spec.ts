@@ -742,3 +742,20 @@ test("o botão Gerenciar mostra onde a assinatura é cobrada e a sugestão da Ap
   await expect.poll(() => posted.length).toBe(1);
   expect(posted[0]).toMatchObject({ action: "pick-apple", id: "s-apple", service: "chatgpt", replaces: "sub-old" });
 });
+
+test("sem link mostra Adicionar link e abre o campo de edição", async ({ page }) => {
+  await mockPlans(page, model([card({
+    service: "unknown",
+    planName: "Plano desconhecido",
+    manageUrl: null,
+    manageLabel: "",
+    removeConfirm: "Isso não cancela sua assinatura no provedor.",
+  })]));
+  await page.goto("/");
+  await expect(page.getByTestId("manage")).toHaveCount(0);
+  const addLink = page.getByTestId("add-manage-link");
+  await expect(addLink).toBeVisible();
+  await addLink.click();
+  await expect(page.getByTestId("plan-edit-form")).toBeVisible();
+  await expect(page.getByTestId("manage-url-input")).toBeVisible();
+});
