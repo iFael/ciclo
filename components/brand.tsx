@@ -29,11 +29,11 @@ export function CycleMark({ className = "size-5", animated = false }: { classNam
 
 export function Brand({ className }: { className?: string }) {
   return (
-    <span className={cn("inline-flex min-h-11 items-center gap-2.5", className)}>
-      <span className="grid size-8 place-items-center rounded-[10px] bg-brand text-brand-foreground">
-        <CycleMark className="size-[22px]" animated />
+    <span className={cn("inline-flex min-h-11 items-center gap-3", className)}>
+      <span className="grid size-11 place-items-center rounded-[13px] bg-brand text-brand-foreground">
+        <CycleMark className="size-[31px]" animated />
       </span>
-      <span className="text-lg font-semibold tracking-[-0.03em]">Ciclo</span>
+      <span className="text-2xl font-semibold tracking-[-0.03em]">Ciclo</span>
     </span>
   );
 }
