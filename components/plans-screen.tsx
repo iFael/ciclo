@@ -1135,7 +1135,7 @@ function EmptyState({
   return (
     <div data-testid={testId} className="flex flex-col items-center rounded-2xl border border-dashed bg-card/50 px-6 py-12 text-center">
       <span aria-hidden="true" className="grid size-12 place-items-center rounded-xl bg-brand text-brand-foreground">
-        <CycleMark className="size-6" />
+        <CycleMark className="size-7" animated />
       </span>
       {legacy ? (
         <p data-testid="empty" className="mt-4 text-base font-semibold">

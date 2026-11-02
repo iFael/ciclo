@@ -206,3 +206,46 @@
     display: none;
   }
 }
+
+/* Logo: the arrow renews around the coin, the coin settles at the end of each turn. */
+@keyframes logo-turn {
+  0% {
+    transform: rotate(0deg);
+  }
+  62% {
+    transform: rotate(360deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes logo-coin {
+  0%,
+  58% {
+    transform: scale(1);
+  }
+  68% {
+    transform: scale(1.22);
+  }
+  80%,
+  100% {
+    transform: scale(1);
+  }
+}
+.logo-live .logo-ring,
+.logo-live .logo-coin {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+.logo-live .logo-ring {
+  animation: logo-turn 3.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.logo-live .logo-coin {
+  animation: logo-coin 3.2s var(--spring, ease-out) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-live .logo-ring,
+  .logo-live .logo-coin {
+    animation: none;
+  }
+}
