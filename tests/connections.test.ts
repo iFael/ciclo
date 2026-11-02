@@ -169,6 +169,29 @@ describe("/api/connections", () => {
     expect((await handleConnections(post({ action: "token", id: "nope" }))).status).toBe(404);
   });
 
+  it("registers the item the widget created without waiting for the webhook", async () => {
+    const store = createMemoryStore({
+      connections: [row({ accounts: [{ id: "a", kind: "card", name: "Mercado Pago", brand: "Visa", last4: "7780" }] })],
+    });
+    useDeps(store, source({ "item-itau": [{ id: "b", type: "CREDIT", name: "Itaú", number: "4321", creditData: { brand: "MASTERCARD" } }] }));
+    const response = await handleConnections(post({ action: "connected", item: "item-itau" }));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { screen: { connections: { title: string }[] } };
+    expect(body.screen.connections.map((connection) => connection.title).sort()).toEqual(["Itaú", "Mercado Pago"]);
+    expect(JSON.stringify(body)).not.toContain("item-itau");
+    expect((await store.load()).connections.filter((connection) => connection.status === "active")).toHaveLength(2);
+  });
+
+  it("refuses a bad item id and reports a read that fails", async () => {
+    const pluggy = source();
+    useDeps(createMemoryStore({ connections: [row()] }), pluggy);
+    expect((await handleConnections(post({ action: "connected", item: "../x" }))).status).toBe(400);
+    pluggy.getItem = async () => {
+      throw new Error("pluggy_404");
+    };
+    expect((await handleConnections(post({ action: "connected", item: "item-9" }))).status).toBe(502);
+  });
+
   it("removes at Pluggy, keeps the row as removed and stops reading it", async () => {
     const store = createMemoryStore({ connections: [row()] });
     const pluggy = source();
