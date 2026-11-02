@@ -293,9 +293,9 @@ describe("screen and safety", () => {
       }),
       NOW,
     );
-    expect(model.monthlyLabel).toBe("R$ 110/mês");
-    expect(model.annualLabel).toBe("≈ R$ 1.320/ano");
-    expect(model.cards[0].priceLabel).toBe("≈ R$ 110/mês");
+    expect(model.monthlyLabel).toBe("R$ 110,00/mês");
+    expect(model.annualLabel).toBe("≈ R$ 1.320,00/ano");
+    expect(model.cards[0].priceLabel).toBe("≈ R$ 110,00/mês");
     expect(model.cards[0].nextChargeLabel).toBe("Última cobrança: 20/10");
     expect(model.cards[0].nextChargeLabel).not.toContain("Próxima cobrança");
     expect(model.cards[0].logoUrl).toBe("/logos/chatgpt.svg");

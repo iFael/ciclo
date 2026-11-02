@@ -6,9 +6,8 @@ export function formatBrl(amount: number): string {
   const negative = amount < 0;
   const abs = Math.abs(amount);
   const cents = Math.round(abs * 100);
-  const whole = cents % 100 === 0;
   const intPart = Math.floor(cents / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  const body = whole ? intPart : `${intPart},${String(cents % 100).padStart(2, "0")}`;
+  const body = `${intPart},${String(cents % 100).padStart(2, "0")}`;
   return `${negative ? "-" : ""}R$ ${body}`;
 }
 
