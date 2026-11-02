@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Check, CircleHelp, ExternalLink, LogOut, Mail, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { Brand, CycleMark, LoadingScreen } from "@/components/brand";
+import { ConnectionsDialog } from "@/components/connections-dialog";
 import { StatementSearch } from "@/components/statement-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { haptic, RollingAmount, Tilt } from "@/components/vivid";
 import { SamplePlan, WelcomeTour, type TourStep } from "@/components/welcome-tour";
+import type { ScreenConnection } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { bannerPlacement, isPlansTab, resolvePlansTab, tabLabelParts, type PlansTab } from "@/lib/plans-tabs";
 import { shouldStartAutoSync, suggestionSummary, syncErrorMessage, SYNC_COOLDOWN_MS } from "@/lib/sync-policy";
@@ -180,7 +182,7 @@ type Model = {
   syncedAt?: string | null;
   firstRead: boolean;
   empty: boolean;
-  connections: { institution: string; statusLabel: string; expiresLabel: string }[];
+  connections: ScreenConnection[];
   appleChoices: { id: string; label: string }[];
 };
 
@@ -473,34 +475,16 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={connections && model !== null} onOpenChange={setConnections}>
-        <DialogContent>
-          <DialogTitle>Conexões</DialogTitle>
-          <DialogDescription>Os cartões que o Ciclo lê pela Pluggy.</DialogDescription>
-          <div className="grid gap-2">
-            {model?.connections.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma conexão ainda.</p>}
-            {model?.connections.map((connection) => (
-              <div key={`${connection.institution}-${connection.expiresLabel}`} className="rounded-xl border bg-background/40 px-4 py-3 text-sm">
-                <p className="font-semibold">{connection.institution}</p>
-                <p className="text-muted-foreground">
-                  {connection.statusLabel}. Vencimento {connection.expiresLabel}.
-                </p>
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Fechar</Button>
-            </DialogClose>
-            <Button asChild>
-              <a href="https://dashboard.pluggy.ai" target="_blank" rel="noopener noreferrer">
-                Renovar
-                <ExternalLink />
-              </a>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConnectionsDialog<Model>
+        open={connections && model !== null}
+        onOpenChange={setConnections}
+        connections={model?.connections ?? []}
+        onScreen={(screen) => {
+          syncedAtRef.current = screen.syncedAt ?? null;
+          setModel(screen);
+        }}
+        onNotice={(title, detail) => setSyncToast({ title, detail })}
+      />
 
       <Dialog open={erase} onOpenChange={setErase}>
         <DialogContent>

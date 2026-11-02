@@ -1,6 +1,15 @@
 export type SubscriptionStatus = "suggested" | "confirmed" | "dismissed" | "ignored" | "cancelled";
 
-export type ConnectionStatus = "active" | "expired" | "replaced" | "error";
+export type ConnectionStatus = "active" | "expired" | "replaced" | "error" | "removed";
+
+/** What the Conexões screen shows of one account. No balance, no full number. */
+export type ConnectionAccount = {
+  id: string;
+  kind: "card" | "account";
+  name: string | null;
+  brand: string | null;
+  last4: string | null;
+};
 
 export type Connection = {
   id: string;
@@ -13,6 +22,8 @@ export type Connection = {
   lastErrorCode: string | null;
   lastSyncHadData: boolean;
   lastDataThrough: string | null;
+  /** Cards and accounts Pluggy listed on the last read. Empty until the first read. */
+  accounts?: ConnectionAccount[];
 };
 
 export type Subscription = {
@@ -151,6 +162,17 @@ export type ScreenModel = {
   syncedAt: string | null;
   firstRead: boolean;
   empty: boolean;
-  connections: { institution: string; statusLabel: string; expiresLabel: string }[];
+  connections: ScreenConnection[];
   appleChoices: { id: string; label: string }[];
+};
+
+export type ScreenConnection = {
+  id: string;
+  title: string;
+  via: string | null;
+  accounts: { id: string; kind: "card" | "account"; label: string; detail: string }[];
+  status: Exclude<ConnectionStatus, "removed" | "replaced">;
+  statusLabel: string;
+  expiresLabel: string;
+  manageHref: string | null;
 };

@@ -200,6 +200,7 @@ function mapConnection(row: Record<string, unknown>): Connection {
     lastErrorCode: row.last_error_code ? String(row.last_error_code) : null,
     lastSyncHadData: Boolean(row.last_sync_had_data),
     lastDataThrough: row.last_data_through ? String(row.last_data_through) : null,
+    accounts: Array.isArray(row.accounts) ? (row.accounts as Connection["accounts"]) : [],
   };
 }
 
@@ -278,6 +279,7 @@ function connectionRow(row: Connection): Record<string, unknown> {
     last_error_code: row.lastErrorCode,
     last_sync_had_data: row.lastSyncHadData,
     last_data_through: row.lastDataThrough,
+    accounts: row.accounts ?? [],
     updated_at: new Date().toISOString(),
   };
 }

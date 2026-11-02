@@ -116,7 +116,7 @@ const payload = {
   footer: "Atualizado há 1 h",
   firstRead: false,
   empty: false,
-  connections: [{ institution: "Mercado Pago", statusLabel: "Ativa", expiresLabel: "01/06/2027" }],
+  connections: [{ id: "conn-1", title: "Mercado Pago", via: "Pelo MeuPluggy", accounts: [{ id: "acc-1", kind: "card", label: "Mercado Pago", detail: "Cartão de crédito · Mastercard · final 1234" }], status: "active", statusLabel: "Ativa", expiresLabel: "01/11/2027", manageHref: "https://meu.pluggy.ai" }],
   appleChoices: [
     { id: "chatgpt", label: "ChatGPT" },
     { id: "claude", label: "Claude" },
