@@ -1,7 +1,7 @@
 import { isShadowed } from "@/lib/actions";
 import { cadenceOf, chargeDates, isStaleCharge, lastChargeLabel } from "@/lib/charges";
 import { appleChoices, serviceInfo } from "@/lib/catalog";
-import { STORES, billingChannel, guessAppleService } from "@/lib/channel";
+import { STORES, billingChannel, guessAppleService, trustedCatalogLink } from "@/lib/channel";
 import { diffDays, todayInSaoPaulo } from "@/lib/dates";
 import { formatBrl, formatDayMonth, formatDayMonthYear, lastSyncAgeHours, round2 } from "@/lib/format";
 import { withLearned } from "@/lib/confidence";
@@ -136,6 +136,8 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
       const company = companyOf(subscription);
       const channel = billingChannel(subscription);
       const store = channel === "direct" ? null : STORES[channel];
+      const catalogManageUrl = trustedCatalogLink(info?.manageUrl);
+      const manageUrl = subscription.manageUrl || store?.manageUrl || catalogManageUrl;
       const dates = chargeDates(state, subscription.id);
       const last = anchorDate(subscription, state, today);
       const cadence = cadenceOf(dates.length ? dates : last ? [last] : []);
@@ -148,17 +150,17 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
         priceLabel: priceLabel(subscription.amount, subscription.approximate),
         nextChargeLabel: lastChargeLabel(last, today, cadence),
         channel,
-        manageUrl: subscription.manageUrl || (store ? store.manageUrl : info?.manageUrl || null),
+        manageUrl,
         customManageUrl: Boolean(subscription.manageUrl),
         manageButton: store && !subscription.manageUrl ? store.button : "Gerenciar no site",
         manageLabel: subscription.manageUrl
           ? `Gerenciar ${subscription.planName} no link que você escolheu, abre em nova aba`
           : store
           ? `Gerenciar ${subscription.planName} ${channel === "apple" ? "na Apple" : "no Google Play"}, abre em nova aba`
-          : info
+          : catalogManageUrl
             ? `Gerenciar ${subscription.planName} no site da ${company}, abre em nova aba`
             : "",
-        removeConfirm: `Isso não cancela sua assinatura ${store ? (channel === "apple" ? "na Apple" : "no Google Play") : `na ${company}`}. Para parar de pagar, use Gerenciar.`,
+        removeConfirm: `Isso não cancela sua assinatura ${store ? (channel === "apple" ? "na Apple" : "no Google Play") : `na ${company}`}.${manageUrl ? " Para parar de pagar, use Gerenciar." : ""}`,
         autoConfirmed: subscription.autoConfirmed,
         notice: subscription.planChangeNotice,
         logoUrl: logo.logoUrl,

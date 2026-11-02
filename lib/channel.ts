@@ -28,6 +28,17 @@ export const STORES: Record<Exclude<BillingChannel, "direct">, StoreInfo> = {
   },
 };
 
+/** A catalog link must point beyond the provider's home page. */
+export function trustedCatalogLink(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && (parsed.pathname !== "/" || Boolean(parsed.hash)) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 export function channelOfDescriptors(descriptors: string[]): BillingChannel {
   if (descriptors.some((descriptor) => isAppleBill(descriptor))) return "apple";
   if (descriptors.some((descriptor) => isGooglePlayBill(descriptor))) return "google-play";
