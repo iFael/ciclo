@@ -91,55 +91,60 @@ export function PlansScreen() {
         Ir para os planos
       </a>
       <header className="top">
-        <div className="brand-row">
-          <Brand />
-          <div className="menu">
-            <button type="button" className="menu-button" data-testid="menu" aria-label="Abrir menu" aria-expanded={menu} onClick={() => setMenu((open) => !open)}>
-              <MenuIcon />
-            </button>
-            {menu && (
-              <>
-                <button className="menu-backdrop" type="button" aria-label="Fechar menu" onClick={() => setMenu(false)} />
-                <div className="menu-panel" role="menu">
-                  <button className="quiet" role="menuitem" data-testid="menu-connections" onClick={() => setConnections(true)}>
-                    Conexões
-                  </button>
-                  <button
-                    className="quiet"
-                    role="menuitem"
-                    data-testid="menu-logout"
-                    onClick={async () => {
-                      await fetch("/api/auth/logout", { method: "POST" });
-                      window.location.replace("/login");
-                    }}
-                  >
-                    Sair
-                  </button>
-                  <button className="quiet" role="menuitem" data-testid="menu-delete" onClick={() => setErase(true)}>
-                    Apagar meus dados
-                  </button>
-                </div>
-              </>
-            )}
+        <div className="top-inner">
+          <div className="brand-row">
+            <Brand />
+            <div className="menu">
+                <button type="button" className="menu-button" data-testid="menu" aria-label="Abrir menu" aria-expanded={menu} onClick={() => setMenu((open) => !open)}>
+                  <MenuIcon />
+                </button>
+                {menu && (
+                  <>
+                    <button className="menu-backdrop" type="button" aria-label="Fechar menu" onClick={() => setMenu(false)} />
+                    <div className="menu-panel" role="menu">
+                      <button className="quiet" role="menuitem" data-testid="menu-connections" onClick={() => setConnections(true)}>
+                        Conexões
+                      </button>
+                      <button
+                        className="quiet"
+                        role="menuitem"
+                        data-testid="menu-logout"
+                        onClick={async () => {
+                          await fetch("/api/auth/logout", { method: "POST" });
+                          window.location.replace("/login");
+                        }}
+                      >
+                        Sair
+                      </button>
+                      <button className="quiet" role="menuitem" data-testid="menu-delete" onClick={() => setErase(true)}>
+                        Apagar meus dados
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
           </div>
+          <div className="top-lead">
+            <h1 data-testid="page-title">Meus planos</h1>
+            <p className="subtitle" data-testid="page-subtitle">
+              Suas assinaturas, encontradas automaticamente no seu cartão.
+            </p>
+          </div>
+          {ready && model && (
+            <div className="summary">
+              <p className="total" data-testid="monthly-total">
+                {model.monthlyLabel}
+              </p>
+              <p className="annual" data-testid="annual-total">
+                {model.annualLabel}
+              </p>
+            </div>
+          )}
         </div>
-        <h1 data-testid="page-title">Meus planos</h1>
-        <p className="subtitle" data-testid="page-subtitle">
-          Suas assinaturas, encontradas automaticamente no seu cartão.
-        </p>
-        {ready && model && (
-          <>
-            <p className="total" data-testid="monthly-total">
-              {model.monthlyLabel}
-            </p>
-            <p className="annual" data-testid="annual-total">
-              {model.annualLabel}
-            </p>
-          </>
-        )}
       </header>
 
       <div className="sheet-body">
+        <div className="content">
         {!model && !error && <p data-testid="loading">Carregando planos…</p>}
         {error && <p className="status status-error" data-testid="load-error">Não foi possível carregar seus planos.</p>}
 
@@ -272,6 +277,7 @@ export function PlansScreen() {
             </footer>
           </>
         )}
+        </div>
       </div>
 
       {pending && (

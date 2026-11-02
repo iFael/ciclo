@@ -169,6 +169,35 @@ describe("verify code", () => {
     });
     expect(limited.status).toBe(429);
   });
+
+  it("accepts a 6 to 10 digit email code, including the 8-digit supabase otp", async () => {
+    const seen: string[] = [];
+    const run = (token: string) =>
+      handleVerifyCode(new Request("http://localhost/api/auth/verify-code", { method: "POST", body: JSON.stringify({ email: "owner@example.com", token }) }), {
+        allowedEmail: "owner@example.com",
+        secure: true,
+        sessionCookies: () => [],
+        verifyCode: async ({ token: code }) => {
+          seen.push(code);
+          return { email: "owner@example.com", error: null };
+        },
+        signOut: async () => undefined,
+      });
+
+    expect((await run("91355226")).status).toBe(200);
+    expect((await run("123456")).status).toBe(200);
+    expect((await run("1234567890")).status).toBe(200);
+    expect((await run("9135 5226")).status).toBe(200);
+    expect(seen).toEqual(["91355226", "123456", "1234567890", "91355226"]);
+
+    const short = await run("12345");
+    expect(short.status).toBe(400);
+    expect(((await short.json()) as { error: string }).error).toBe(LOGIN_COPY.needCode);
+    const long = await run("12345678901");
+    expect(long.status).toBe(400);
+    expect(((await long.json()) as { error: string }).error).toBe(LOGIN_COPY.needCode);
+    expect(seen).toHaveLength(4);
+  });
 });
 
 describe("login feedback", () => {

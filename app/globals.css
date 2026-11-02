@@ -204,10 +204,11 @@ input, select {
 }
 
 .code-input, #login-code {
-  letter-spacing: 0.42em;
+  letter-spacing: 0.28em;
   text-align: center;
-  font-size: 1.5rem;
+  font-size: 1.45rem;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 button, .button {
@@ -474,23 +475,137 @@ dialog p { margin: 0; color: var(--muted); }
   justify-self: center;
 }
 
-@media (min-width: 760px) {
-  .canvas { align-items: stretch; padding: 28px 16px; }
-  .sheet {
-    min-height: calc(100dvh - 56px);
-    border: 1px solid var(--line);
-    border-radius: 28px;
-    box-shadow: var(--shadow);
-  }
+@media (max-width: 767px) {
+  .sheet, .canvas { max-width: 100%; }
+}
+
+@media (min-width: 768px) {
   dialog {
     bottom: auto;
     top: 50%;
     transform: translate(-50%, -50%);
+    width: min(480px, calc(100% - 48px));
     border-radius: 22px;
     padding-bottom: 20px;
   }
+
+  .canvas:has(.login-sheet) {
+    align-items: center;
+    padding: 32px 16px;
+  }
+
+  .login-sheet {
+    width: min(440px, 100%);
+    min-height: min(640px, calc(100dvh - 64px));
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .sheet:not(.login-sheet) {
+    width: 100%;
+    max-width: none;
+  }
+
+  .sheet:not(.login-sheet) .top:has(.top-inner) {
+    padding: 0;
+  }
+
+  .sheet:not(.login-sheet) .top-inner,
+  .sheet:not(.login-sheet) .content {
+    width: min(960px, calc(100% - 48px));
+    margin-inline: auto;
+  }
+
+  .sheet:not(.login-sheet) .top-inner {
+    padding: calc(14px + env(safe-area-inset-top)) 0 22px;
+  }
+
+  .sheet:not(.login-sheet) .sheet-body:has(.content) {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .cards,
+  .suggestion-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .empty {
+    max-width: 560px;
+    margin: 40px auto 0;
+    padding: 48px 28px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: var(--card);
+  }
 }
 
-@media (max-width: 759px) {
-  .sheet, .canvas { max-width: 100%; }
+@media (min-width: 1024px) {
+  .sheet:not(.login-sheet) .top {
+    position: relative;
+  }
+
+  .sheet:not(.login-sheet) .top-inner,
+  .sheet:not(.login-sheet) .content {
+    width: min(1320px, calc(100% - 80px));
+  }
+
+  .sheet:not(.login-sheet) .top-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 48px;
+    row-gap: 8px;
+    align-items: end;
+    padding-top: calc(18px + env(safe-area-inset-top));
+    padding-bottom: 32px;
+  }
+
+  .sheet:not(.login-sheet) .brand-row {
+    grid-column: 1 / -1;
+  }
+
+  .sheet:not(.login-sheet) .top h1 {
+    margin-top: 20px;
+    font-size: 1.65rem;
+    font-weight: 620;
+    letter-spacing: -0.035em;
+    color: var(--header-ink);
+  }
+
+  .sheet:not(.login-sheet) .top .subtitle {
+    max-width: 42rem;
+    font-size: 1.02rem;
+  }
+
+  .sheet:not(.login-sheet) .summary {
+    text-align: right;
+  }
+
+  .sheet:not(.login-sheet) .summary .total {
+    margin: 0;
+    font-size: clamp(2.75rem, 3.5vw, 3.75rem);
+  }
+
+  .sheet:not(.login-sheet) .summary .annual {
+    margin-top: 8px;
+    font-size: 1.05rem;
+  }
+
+  .sheet:not(.login-sheet) .content {
+    padding-top: 8px;
+  }
+
+  .notice-neutral > p:first-child {
+    font-size: 1.2rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .cards,
+  .suggestion-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }

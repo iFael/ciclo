@@ -6,11 +6,14 @@ export const LOGIN_COPY = {
   failed: "Não foi possível enviar o link.",
   offline: "Sem conexão. Tente de novo.",
   badCode: "Código inválido ou expirado.",
-  needCode: "Digite o código de 6 dígitos.",
+  needCode: "Digite o código do e-mail.",
   codeFailed: "Não foi possível confirmar o código.",
   linkExpired: "Esse link expirou ou não é válido. Peça outro.",
   config: "Configuração incompleta no servidor.",
 } as const;
+
+/** Supabase email OTPs are 8 digits today and have also been 6. Accept the whole range. */
+export const EMAIL_CODE_PATTERN = /^\d{6,10}$/;
 
 const QUERY_ERRORS: Record<string, string> = {
   link: LOGIN_COPY.linkExpired,
