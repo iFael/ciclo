@@ -186,7 +186,7 @@ describe("amount, day and ranking", () => {
 });
 
 describe("answers stick", () => {
-  it("hides only the ignored amount group", () => {
+  it("brings a refused amount group back on the next sync", () => {
     const pricey = months("ACADEMIA FIT", RECENT, 100, "hi");
     const cheap = months("ACADEMIA FIT", RECENT, 40, "lo");
     const found = detect([...pricey, ...cheap], [], TODAY);
@@ -195,7 +195,7 @@ describe("answers stick", () => {
     const expensive = merged.subscriptions.find((item) => item.amount === 100);
     const ignored = applyAction(merged, { action: "ignore", id: expensive!.id }, new Date("2026-11-01T15:00:00.000Z"));
     const again = detect([...pricey, ...cheap], ignored.ignoredDescriptors, TODAY);
-    expect(again.map((item) => item.amount)).toEqual([40]);
+    expect(again.map((item) => item.amount).sort((a, b) => a - b)).toEqual([40, 100]);
   });
 
   it("attaches a later charge to the confirmed plan instead of a new suggestion", () => {

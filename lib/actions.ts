@@ -43,8 +43,7 @@ export function applyAction(input: AppState, command: PlanAction, now: Date): Ap
   if (command.action === "ignore" && subscription.status === "suggested") {
     subscription.status = "ignored";
     subscription.undoStatus = null;
-    const token = merchantIgnoreToken(subscription.merchantKey);
-    if (!state.ignoredDescriptors.includes(token)) state.ignoredDescriptors.push(token);
+    // "Not a subscription" is a "not now": no ignore token, so the next sync suggests it again.
     return state;
   }
 
@@ -184,6 +183,9 @@ export function mergeDetections(
         });
       }
       continue;
+    }
+    if (existing.status === "ignored" && !state.ignoredDescriptors.includes(merchantIgnoreToken(existing.merchantKey))) {
+      existing.status = "suggested";
     }
     if (existing.status === "ignored" || existing.status === "cancelled") continue;
     for (const charge of detection.charges) {
