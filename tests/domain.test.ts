@@ -89,7 +89,16 @@ describe("matching", () => {
       ["PIX CLAUDETE", null],
       ["CLAUDE", null],
       ["OPENAI *API USAGE", null],
-      ["OPENAI", null],
+      ["OPENAI", "chatgpt"],
+      ["OPENAI SAN FRANCISCO", "chatgpt"],
+      ["ANTHROPIC PBC", "claude"],
+      ["CLAUDE.AI SUBSCRIPTION", "claude"],
+      ["X.AI LLC", "grok"],
+      ["MERCADOPAGO*IFOOD CLUBE", "ifood-clube"],
+      ["MP *IFOODCLUB", null],
+      ["PAYPAL *NETFLIX", "netflix"],
+      ["EBANX*SPOTIFY", "spotify"],
+      ["LOJA X", null],
       ["IOF do rotativo", null],
     ];
     for (const [description, expected] of table) {

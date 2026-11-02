@@ -11,7 +11,7 @@
  * - X Subscription Plus $8, Premium $30, Super $100, Ultra $200
  */
 
-export const CATALOG_VERSION = 2;
+export const CATALOG_VERSION = 3;
 export const FX_REFERENCE_BRL = 5.5;
 
 export type PlanBand = {
@@ -64,7 +64,7 @@ export const CATALOG: ServiceInfo[] = [
       band("ChatGPT Pro 200", 200),
       band("ChatGPT Pro 500", 500),
     ],
-    patterns: [["OPENAI", "CHATGPT"], ["CHATGPT"]],
+    patterns: [["OPENAI", "CHATGPT"], ["CHATGPT"], ["OPENAI"]],
     logo: "/logos/chatgpt.svg",
     domains: ["chatgpt.com", "openai.com"],
   },
@@ -75,7 +75,7 @@ export const CATALOG: ServiceInfo[] = [
     manageUrl: "https://claude.ai/settings/billing",
     cancelUrl: "https://support.claude.com/en/articles/8325617-cancel-your-pro-or-max-subscription",
     plans: [band("Claude Pro", 20), band("Claude Max", 100), band("Claude Ultra", 200)],
-    patterns: [["ANTHROPIC", "CLAUDE"], ["CLAUDE", "AI"]],
+    patterns: [["ANTHROPIC", "CLAUDE"], ["CLAUDE", "AI"], ["ANTHROPIC"], ["CLAUDEAI"]],
     logo: "/logos/claude.svg",
     domains: ["claude.ai", "anthropic.com"],
   },
@@ -86,7 +86,7 @@ export const CATALOG: ServiceInfo[] = [
     manageUrl: "https://grok.com/dashboard/billing",
     cancelUrl: "https://grok.com/dashboard/billing",
     plans: [band("Grok Plus", 8), band("SuperGrok", 30), band("Grok Super", 100), band("Grok Ultra", 200)],
-    patterns: [["SUPERGROK"], ["GROK", "XAI"], ["GROK"]],
+    patterns: [["SUPERGROK"], ["GROK", "XAI"], ["GROK"], ["XAI"]],
     logo: "/logos/grok.svg",
     domains: ["grok.com", "x.ai"],
   },
@@ -207,7 +207,7 @@ export const CATALOG: ServiceInfo[] = [
     manageUrl: "https://www.ifood.com.br/clube",
     cancelUrl: "https://www.ifood.com.br/clube",
     plans: [brlBand("iFood Clube", 9.9)],
-    patterns: [["IFOOD", "CLUBE"]],
+    patterns: [["IFOOD", "CLUBE"], ["IFOOD", "CLUB"], ["IFOODCLUBE"], ["CLUBE", "IFOOD"]],
     logo: "/logos/ifood-clube.svg",
     domains: ["ifood.com.br"],
   },

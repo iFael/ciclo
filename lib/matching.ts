@@ -13,7 +13,7 @@ import {
   MIN_MONTHLY_OCCURRENCES,
   MONTHLY_GRACE_DAYS,
 } from "@/lib/rules";
-import { descriptorWords, matchesPattern, normalizeDescriptor } from "@/lib/text";
+import { descriptorWords, hasPhrase, matchesPattern, merchantDescriptor, merchantWords, normalizeDescriptor } from "@/lib/text";
 
 export { isIofRotativo, excludedKind, isGenericDescriptor } from "@/lib/noise";
 export { normalizeDescriptor, descriptorWords } from "@/lib/text";
@@ -74,8 +74,12 @@ export function merchantIgnoreToken(merchantKey: string): string {
 export function classifyDescriptor(description: string): string | null {
   const words = descriptorWords(description);
   if (words.includes("OPENAI") && words.includes("API")) return null;
+  const merchant = merchantWords(description);
+  if (hasPhrase(words, ["X", "AI"])) return "grok";
   for (const service of CATALOG) {
-    if (service.patterns.some((phrase) => matchesPattern(words, phrase))) return service.id;
+    if (service.patterns.some((phrase) => matchesPattern(words, phrase) || (merchant.length > 0 && matchesPattern(merchant, phrase)))) {
+      return service.id;
+    }
   }
   return null;
 }
@@ -358,7 +362,7 @@ function planTitle(service: string | null, descriptor: string, amount: number): 
 function detectionFromCluster(txs: CandidateTx[], service: string | null, today: string): Detection | null {
   const summary = summarize(txs, today, Boolean(service && service !== "apple"));
   if (!summary.passed || !summary.last) return null;
-  const descriptor = normalizeDescriptor(txs[0]?.description ?? "");
+  const descriptor = merchantDescriptor(txs[0]?.description ?? "");
   const info = service ? serviceInfo(service) : undefined;
   const amount = round2(summary.medianAmount);
   const confidence = confidenceFor({
@@ -406,7 +410,7 @@ export function detect(transactions: CandidateTx[], ignored: string[] = [], toda
   const groups = new Map<string, { service: string | null; txs: CandidateTx[] }>();
   for (const tx of usable) {
     const service = classifyDescriptor(tx.description);
-    const key = service ?? `raw:${normalizeDescriptor(tx.description)}`;
+    const key = service ?? `raw:${merchantDescriptor(tx.description)}`;
     const group = groups.get(key) ?? { service, txs: [] };
     group.txs.push(tx);
     groups.set(key, group);

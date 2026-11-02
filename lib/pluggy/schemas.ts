@@ -46,6 +46,7 @@ export const pluggyTransactionSchema = z.object({
   date: isoDate,
   accountId: optional(text),
   currencyCode: optional(text),
+  amountInAccountCurrency: amount.nullish(),
   type: optional(text),
   category: text.nullish(),
   operationType: text.nullish(),
