@@ -217,14 +217,17 @@ describe("matching", () => {
     expect(found[0].suggestionLabel).toBe("3 meses seguidos");
   });
 
-  it("drops an ignored merchant and amount group forever", () => {
+  it("suggests a refused suggestion again on the next sync", () => {
     const txs = ["2026-08-01", "2026-09-01", "2026-10-01"].map((chargeDate, index) =>
       tx({ id: `c${index}`, description: "OPENAI *CHATGPT SUBSCR", chargeDate }),
     );
     const merged = mergeDetections(emptyState(), detect(txs, [], "2026-11-01"), true);
     const ignored = applyAction(merged, { action: "ignore", id: merged.subscriptions[0].id }, NOW);
-    expect(ignored.ignoredDescriptors).toContain("merchant:chatgpt");
-    expect(detect(txs, ignored.ignoredDescriptors, "2026-11-01")).toEqual([]);
+    expect(ignored.subscriptions[0].status).toBe("ignored");
+    expect(ignored.ignoredDescriptors).toEqual([]);
+    const again = mergeDetections(ignored, detect(txs, ignored.ignoredDescriptors, "2026-11-01"), true);
+    expect(again.subscriptions).toHaveLength(1);
+    expect(again.subscriptions[0].status).toBe("suggested");
   });
 
   it("keeps plan names inside a 15% FX move and uses the service name outside a band", () => {
@@ -513,12 +516,11 @@ describe("screen and safety", () => {
 
     const ignored = applyAction(removed, { action: "ignore", id: "claude" }, NOW);
     expect(ignored.subscriptions.find((item) => item.id === "claude")?.status).toBe("ignored");
-    expect(ignored.ignoredDescriptors).toContain("merchant:claude");
     expect(buildScreen(ignored, NOW).suggestions.map((item) => item.planName)).toEqual(["Suno Inc"]);
-    const hidden = mergeDetections(ignored, found, true);
-    expect(hidden.subscriptions.filter((item) => item.merchantKey === "claude").every((item) => item.status === "ignored")).toBe(true);
-    expect(buildScreen(hidden, NOW).suggestions.some((item) => item.planName === "Claude Pro")).toBe(false);
-    expect(buildScreen(hidden, NOW).banners.some((item) => item.text.startsWith("Ainda cobrando:"))).toBe(false);
+    // Refusing is "not now": the next sync brings it back as a suggestion.
+    const back = mergeDetections(ignored, found, true);
+    expect(back.subscriptions.find((item) => item.merchantKey === "claude")?.status).toBe("suggested");
+    expect(buildScreen(back, NOW).suggestions.some((item) => item.planName === "Claude Pro")).toBe(true);
   });
 });
 

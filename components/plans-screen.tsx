@@ -347,19 +347,6 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   const showAssinaturas = Boolean(ready && model && (desktop || tab === "assinaturas"));
   const showSugestoes = Boolean(ready && model && (desktop || tab === "sugestoes"));
 
-  const syncPill = model && (
-    <span className={cn("inline-flex h-9 min-w-0 items-center gap-2 rounded-full border bg-card pl-3 text-muted-foreground", desktop ? "pr-1 text-[13.5px]" : "pr-3.5 text-[13px]")}>
-      <span
-        aria-hidden="true"
-        className={cn("size-[7px] shrink-0 rounded-full bg-success shadow-[0_0_0_3px_color-mix(in_oklab,var(--success)_18%,transparent)]", syncing && "animate-pulse")}
-      />
-      <span data-testid="footer-sync" aria-live="polite" className="truncate">
-        {syncing ? "Sincronizando…" : model.footer}
-      </span>
-      {desktop && <SyncButton syncing={syncing} onClick={manualSync} iconOnly />}
-    </span>
-  );
-
   const removeDialogs = (
     <>
       <Dialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
@@ -455,7 +442,11 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
         <div className="mx-auto flex h-16 max-w-[1120px] items-center justify-between gap-3 px-4 sm:px-6 lg:h-auto lg:border-b lg:px-0 lg:pb-7 lg:pt-7">
           <Brand />
           <div className="flex min-w-0 items-center gap-2.5">
-            {desktop && ready && syncPill}
+            {ready && model && (
+              <span data-testid="footer-sync" aria-live="polite" className="sr-only">
+                {syncing ? "Sincronizando…" : model.footer}
+              </span>
+            )}
             {ready && <StatementSearch<Model> onConfirmed={(next) => setModel(next)} />}
             <ThemeToggle />
             <DropdownMenu modal={false}>
@@ -469,6 +460,11 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                   <RefreshCw />
                   Sincronizar agora
                 </DropdownMenuItem>
+                {model && (
+                  <p data-testid="menu-sync-status" className="px-2 pb-1.5 pl-8 text-xs text-muted-foreground">
+                    {syncing ? "Sincronizando…" : model.footer}
+                  </p>
+                )}
                 <DropdownMenuItem data-testid="menu-connections" onSelect={() => setConnections(true)}>
                   <Plug />
                   Conexões
@@ -562,13 +558,6 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
               ]}
             />
           </section>
-        )}
-
-        {ready && model && !desktop && (
-          <div className="mt-3.5 flex items-center justify-between gap-2">
-            {syncPill}
-            <SyncButton syncing={syncing} onClick={manualSync} />
-          </div>
         )}
 
         {ready && (connectionBanner || model?.firstRead) && (
@@ -1079,24 +1068,6 @@ function SectionHeading({ id, title, count, note }: { id: string; title: string;
       </h2>
       {note && <span className="text-sm text-muted-foreground">{note}</span>}
     </div>
-  );
-}
-
-function SyncButton({ syncing, onClick, iconOnly = false }: { syncing: boolean; onClick: () => void; iconOnly?: boolean }) {
-  return (
-    <Button
-      variant={iconOnly ? "ghost" : "outline"}
-      size="sm"
-      className={cn("shrink-0 rounded-full", iconOnly ? "size-7 p-0 text-foreground" : "h-9 bg-card px-3.5")}
-      data-testid="sync-now"
-      aria-label="Sincronizar agora"
-      aria-busy={syncing}
-      disabled={syncing}
-      onClick={onClick}
-    >
-      <RefreshCw className={cn("size-[15px]", syncing && "animate-spin")} />
-      {!iconOnly && <span aria-hidden="true">Sincronizar</span>}
-    </Button>
   );
 }
 
