@@ -33,11 +33,13 @@ export function applyAction(input: AppState, command: PlanAction, now: Date): Ap
     subscription.suppressAutoConfirm = true;
     subscription.suggestionLabel = null;
     subscription.checked = false;
+    subscription.undoStatus = null;
     return state;
   }
 
   if (command.action === "ignore" && subscription.status === "suggested") {
     subscription.status = "ignored";
+    subscription.undoStatus = null;
     for (const descriptor of subscription.descriptors) {
       const normalized = normalizeDescriptor(descriptor);
       if (!state.ignoredDescriptors.includes(normalized)) state.ignoredDescriptors.push(normalized);
@@ -55,10 +57,22 @@ export function applyAction(input: AppState, command: PlanAction, now: Date): Ap
     subscription.autoConfirmed = false;
     subscription.suppressAutoConfirm = true;
     subscription.suggestionLabel = null;
+    subscription.undoStatus = null;
     return state;
   }
 
   if (command.action === "remove" && subscription.status !== "dismissed") {
+    const backToSuggestions =
+      subscription.status === "confirmed" && subscription.suppressAutoConfirm && !subscription.autoConfirmed;
+    if (backToSuggestions) {
+      subscription.undoStatus = "confirmed";
+      subscription.status = "suggested";
+      subscription.dismissedAt = null;
+      subscription.autoConfirmed = false;
+      subscription.suppressAutoConfirm = true;
+      if (!subscription.suggestionLabel) subscription.suggestionLabel = "Pode ser recorrente";
+      return state;
+    }
     subscription.undoStatus = subscription.status;
     subscription.status = "dismissed";
     subscription.dismissedAt = now.toISOString();
@@ -71,6 +85,16 @@ export function applyAction(input: AppState, command: PlanAction, now: Date): Ap
       subscription.status = subscription.undoStatus;
       subscription.dismissedAt = null;
       subscription.undoStatus = null;
+      return state;
+    }
+    if (subscription.status === "suggested" && subscription.undoStatus === "confirmed") {
+      subscription.status = "confirmed";
+      subscription.undoStatus = null;
+      subscription.dismissedAt = null;
+      subscription.autoConfirmed = false;
+      subscription.suppressAutoConfirm = true;
+      subscription.suggestionLabel = null;
+      subscription.checked = false;
       return state;
     }
     if (subscription.autoConfirmed && subscription.status === "confirmed") {

@@ -168,6 +168,94 @@ test("remover persiste depois de recarregar e desfazer traz o plano de volta", a
   await expect(page.getByTestId("plan-card")).toHaveCount(0);
 });
 
+function suggestion(id: string, planName: string, priceLabel: string) {
+  return { id, planName, label: "Pode ser recorrente", checked: false, priceLabel, apple: false };
+}
+
+function plansWith(phase: "open" | "confirmed") {
+  const claude = suggestion("claude", "Claude Pro", "≈ R$ 113,85/mês");
+  const suno = suggestion("suno", "Suno Inc", "R$ 51,75/mês");
+  const suggestions = phase === "confirmed" ? [suno] : [claude, suno];
+  const cards =
+    phase === "confirmed"
+      ? [
+          card({
+            id: "claude",
+            service: "claude",
+            planName: "Claude Pro",
+            priceLabel: "≈ R$ 113,85/mês",
+            nextChargeLabel: "Próxima cobrança: 15/11, em 14 dias",
+            manageUrl: "https://claude.ai/settings/billing",
+            manageLabel: "Gerenciar Claude Pro no site da Anthropic, abre em nova aba",
+            removeConfirm: "Isso não cancela sua assinatura na Anthropic. Para parar de pagar, use Gerenciar.",
+          }),
+        ]
+      : [];
+  const noun = suggestions.length === 1 ? "possível assinatura" : "possíveis assinaturas";
+  return {
+    ...model(cards),
+    monthlyLabel: phase === "confirmed" ? "≈ R$ 113,85/mês" : "R$ 0/mês",
+    annualLabel: phase === "confirmed" ? "≈ R$ 1.366,20/ano" : "≈ R$ 0/ano",
+    suggestions,
+    banners: [{ id: "suggestions", tone: "neutral", text: `Encontramos ${suggestions.length} ${noun}`, actions: [] }],
+  };
+}
+
+async function routeSuggestionFlow(page: Page) {
+  let phase: "open" | "confirmed" = "open";
+  await page.route("**/api/plans", async (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as { action?: string; id?: string };
+      if (body.id === "claude" && (body.action === "confirm" || body.action === "undo")) phase = "confirmed";
+      if (body.id === "claude" && body.action === "remove") phase = "open";
+    }
+    await route.fulfill({ json: plansWith(phase) });
+  });
+}
+
+test("confirmar, remover e desfazer atualizam a lista sem recarregar", async ({ page }) => {
+  await routeSuggestionFlow(page);
+  await page.goto("/");
+  await expect(page.getByText("Encontramos 2 possíveis assinaturas")).toBeVisible();
+  await expect(page.getByTestId("suggestion")).toHaveCount(2);
+
+  await page.getByTestId("suggestion").filter({ hasText: "Claude Pro" }).getByTestId("suggestion-yes").click();
+  await expect(page.getByTestId("plan-card")).toHaveCount(1);
+  await expect(page.getByTestId("plan-name")).toHaveText("Claude Pro");
+  await expect(page.getByText("Encontramos 1 possível assinatura")).toBeVisible();
+  await expect(page.getByTestId("suggestion")).toHaveCount(1);
+  await expect(page.getByTestId("suggestion").filter({ hasText: "Claude Pro" })).toHaveCount(0);
+
+  await page.getByTestId("remove").click();
+  await page.getByTestId("remove-confirm").click();
+  await expect(page.getByTestId("undo-toast")).toBeVisible();
+  await expect(page.getByTestId("undo-toast")).toContainText("Plano removido do Ciclo.");
+  await expect(page.getByTestId("plan-card")).toHaveCount(0);
+  await expect(page.getByText("Encontramos 2 possíveis assinaturas")).toBeVisible();
+  await expect(page.getByTestId("suggestion").filter({ hasText: "Claude Pro" })).toBeVisible();
+  await expect(page.getByTestId("suggestion").filter({ hasText: "Claude Pro" }).getByTestId("suggestion-yes")).toBeVisible();
+  await expect(page.getByTestId("suggestion").filter({ hasText: "Claude Pro" }).getByTestId("suggestion-no")).toBeVisible();
+
+  await page.getByRole("button", { name: "Desfazer" }).click();
+  await expect(page.getByTestId("undo-toast")).toBeHidden();
+  await expect(page.getByTestId("plan-card")).toHaveCount(1);
+  await expect(page.getByTestId("plan-name")).toHaveText("Claude Pro");
+  await expect(page.getByText("Encontramos 1 possível assinatura")).toBeVisible();
+});
+
+test("o aviso de desfazer some sozinho depois de alguns segundos", async ({ page }) => {
+  await routeSuggestionFlow(page);
+  await page.goto("/");
+  await page.getByTestId("suggestion").filter({ hasText: "Claude Pro" }).getByTestId("suggestion-yes").click();
+  await page.getByTestId("remove").click();
+  await page.getByTestId("remove-confirm").click();
+  await expect(page.getByTestId("undo-toast")).toBeVisible();
+  await expect(page.getByTestId("undo-toast")).toBeHidden({ timeout: 8000 });
+  await expect(page.getByText("Encontramos 2 possíveis assinaturas")).toBeVisible();
+  await expect(page.getByTestId("suggestion").filter({ hasText: "Claude Pro" })).toBeVisible();
+  await expect(page.getByTestId("plan-card")).toHaveCount(0);
+});
+
 test("mostra a primeira leitura, a lista vazia e o erro de carga", async ({ page }) => {
   await mockPlans(page, model([], { firstRead: true }));
   await page.goto("/");
