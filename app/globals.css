@@ -266,11 +266,15 @@
   }
 }
 .logo-live .logo-ring,
-.logo-live .logo-coin,
-.logo-loading .logo-ring,
-.logo-loading .logo-coin {
+.logo-loading .logo-ring {
   transform-box: view-box;
   transform-origin: 50% 50%;
+}
+.logo-live .logo-coin,
+.logo-loading .logo-coin {
+  /* The coin grows from the exact middle of the money sign, whatever the font. */
+  transform-box: fill-box;
+  transform-origin: center;
 }
 .logo-live .logo-ring {
   animation: logo-turn 10s cubic-bezier(0.65, 0, 0.35, 1) infinite;
