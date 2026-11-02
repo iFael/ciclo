@@ -49,7 +49,10 @@ test("o menu envia o resumo semanal por e-mail", async ({ page }, testInfo) => {
   await expect(page.getByTestId("sync-toast")).toContainText("Resumo enviado");
   await page.screenshot({ path: testInfo.outputPath("toast.png") });
 
+  // The menu closes with an animation; open it again only once it is gone, or the click lands on the closing menu.
+  await expect(page.getByTestId("menu-summary")).toHaveCount(0);
   await page.getByTestId("menu").click();
+  await expect(page.getByTestId("menu-summary")).toBeVisible();
   await page.getByTestId("menu-summary").click();
   await expect(page.getByTestId("sync-error")).toContainText("Espere um minuto");
   expect(calls).toBe(2);
