@@ -40,6 +40,11 @@ const payload = {
 
 test("Conexões mostra o banco e os cartões reais e permite conectar outro", async ({ page }, testInfo) => {
   await silenceSync(page);
+  await page.context().route("https://meu.pluggy.ai/**", (route) => route.fulfill({ contentType: "text/html", body: "<p>MeuPluggy</p>" }));
+  let popup = { url: () => "" };
+  page.context().on("page", (opened) => {
+    popup = opened;
+  });
   await page.route("**/api/plans", (route) => route.fulfill({ json: payload }));
   const removed = { ...payload, connections: payload.connections.slice(0, 1) };
   await page.route("**/api/connections", (route) => route.fulfill({ json: { ok: true, screen: removed } }));
@@ -65,6 +70,13 @@ test("Conexões mostra o banco e os cartões reais e permite conectar outro", as
     await page.waitForTimeout(500);
     await page.screenshot({ path: testInfo.outputPath(`${viewport.width === 390 ? "mobile" : "desktop"}-${scheme}-conexoes.png`) });
   }
+
+  await page.getByTestId("connect-bank").click();
+  await expect(page.getByTestId("add-bank-waiting")).toBeVisible();
+  await expect.poll(() => popup.url()).toContain("meu.pluggy.ai/connections");
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: testInfo.outputPath("conectar-banco.png") });
+  await page.getByRole("button", { name: "Cancelar" }).click();
 
   await page.getByRole("button", { name: "Remover Nubank" }).click();
   await page.getByRole("button", { name: "Remover", exact: true }).click();

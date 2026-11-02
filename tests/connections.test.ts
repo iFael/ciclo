@@ -156,6 +156,7 @@ describe("/api/connections", () => {
     const body = (await response.json()) as Record<string, unknown>;
     expect(body.accessToken).toBe("connect-token");
     expect(body.updateItem).toBeUndefined();
+    expect(body.selectedConnectorId).toBe(200);
     expect(pluggy.tokens).toEqual([undefined]);
   });
 

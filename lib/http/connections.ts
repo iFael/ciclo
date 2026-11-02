@@ -1,5 +1,6 @@
 import { resolveDeps } from "@/lib/deps";
 import { isAuthorized } from "@/lib/http/gate";
+import { isAggregator } from "@/lib/pluggy/map";
 import { prepareScreen } from "@/lib/present";
 import { ConfigError, safeLog } from "@/lib/security";
 import { storeLogoCache } from "@/lib/store";
@@ -37,7 +38,10 @@ export async function handleConnections(request: Request): Promise<Response> {
       if (body.id !== undefined && !connection) return Response.json({ error: "Conexão não encontrada." }, { status: 404 });
       const accessToken = await pluggy.createConnectToken(connection?.itemId);
       // Renewing needs the widget to know which item. Only that one, only on request.
-      return Response.json({ accessToken, updateItem: connection?.itemId }, { headers: noStore });
+      // A new bank goes through MeuPluggy, so the widget can skip the connector list.
+      const aggregator = state.connections.find((row) => isAggregator(row.institution) && /^\d+$/.test(row.connectorId ?? ""));
+      const selectedConnectorId = connection || !aggregator ? undefined : Number(aggregator.connectorId);
+      return Response.json({ accessToken, updateItem: connection?.itemId, selectedConnectorId }, { headers: noStore });
     }
 
     if (body.action === "remove") {
