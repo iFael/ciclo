@@ -1,5 +1,5 @@
 import { buildConfidence, type Confidence, type ConfidenceCheck } from "@/lib/confidence";
-import { CATALOG, isForeignService, planNameFor, serviceInfo } from "@/lib/catalog";
+import { catalog, isForeignService, planNameFor, serviceInfo } from "@/lib/catalog";
 import { diffDays, saoPauloCivilDate, todayInSaoPaulo } from "@/lib/dates";
 import { formatBrl, formatDayMonth, round2 } from "@/lib/format";
 import { excludedKind, isGenericDescriptor, isIofRotativo, type TxSignals } from "@/lib/noise";
@@ -76,7 +76,7 @@ export function classifyDescriptor(description: string): string | null {
   if (words.includes("OPENAI") && words.includes("API")) return null;
   const merchant = merchantWords(description);
   if (hasPhrase(words, ["X", "AI"])) return "grok";
-  for (const service of CATALOG) {
+  for (const service of catalog()) {
     if (service.patterns.some((phrase) => matchesPattern(words, phrase) || (merchant.length > 0 && matchesPattern(merchant, phrase)))) {
       return service.id;
     }
@@ -359,8 +359,8 @@ function planTitle(service: string | null, descriptor: string, amount: number): 
   return planNameFor(service, amount);
 }
 
-function detectionFromCluster(txs: CandidateTx[], service: string | null, today: string): Detection | null {
-  const summary = summarize(txs, today, Boolean(service && service !== "apple"));
+function detectionFromCluster(txs: CandidateTx[], service: string | null, today: string, known = false): Detection | null {
+  const summary = summarize(txs, today, known || Boolean(service && service !== "apple"));
   if (!summary.passed || !summary.last) return null;
   const descriptor = merchantDescriptor(txs[0]?.description ?? "");
   const info = service ? serviceInfo(service) : undefined;
@@ -397,8 +397,32 @@ function detectionFromCluster(txs: CandidateTx[], service: string | null, today:
   };
 }
 
-export function detect(transactions: CandidateTx[], ignored: string[] = [], today = todayInSaoPaulo()): Detection[] {
+/**
+ * A merchant the user already confirmed. Its charges are recognized from the
+ * statement text alone, even a single charge after a pause, with no catalog
+ * row: this is how the app learns the user's routine.
+ */
+export type KnownMerchant = { merchantKey: string; service: string; descriptors: string[] };
+
+export function knownMerchants(subscriptions: { status: string; merchantKey: string; service: string; descriptors: string[] }[]): KnownMerchant[] {
+  return subscriptions
+    .filter((item) => (item.status === "confirmed" || item.status === "cancelled") && item.descriptors.length > 0)
+    .map((item) => ({
+      merchantKey: item.merchantKey,
+      service: item.service,
+      descriptors: [...new Set(item.descriptors.map((descriptor) => merchantDescriptor(descriptor)))],
+    }));
+}
+
+export function detect(
+  transactions: CandidateTx[],
+  ignored: string[] = [],
+  today = todayInSaoPaulo(),
+  known: KnownMerchant[] = [],
+): Detection[] {
   const { merchants, descriptors } = parseIgnored(ignored);
+  const knownBy = new Map<string, KnownMerchant>();
+  for (const merchant of known) for (const descriptor of merchant.descriptors) knownBy.set(descriptor, merchant);
   const usable = transactions.filter((tx) => {
     if (excludedKind(tx)) return false;
     const service = classifyDescriptor(tx.description);
@@ -407,11 +431,12 @@ export function detect(transactions: CandidateTx[], ignored: string[] = [], toda
     return true;
   });
 
-  const groups = new Map<string, { service: string | null; txs: CandidateTx[] }>();
+  const groups = new Map<string, { service: string | null; known: KnownMerchant | null; txs: CandidateTx[] }>();
   for (const tx of usable) {
     const service = classifyDescriptor(tx.description);
-    const key = service ?? `raw:${merchantDescriptor(tx.description)}`;
-    const group = groups.get(key) ?? { service, txs: [] };
+    const mine = knownBy.get(merchantDescriptor(tx.description)) ?? null;
+    const key = mine ? `known:${mine.merchantKey}` : (service ?? `raw:${merchantDescriptor(tx.description)}`);
+    const group = groups.get(key) ?? { service: mine && mine.service !== "unknown" ? mine.service : service, known: mine, txs: [] };
     group.txs.push(tx);
     groups.set(key, group);
   }
@@ -419,8 +444,17 @@ export function detect(transactions: CandidateTx[], ignored: string[] = [], toda
   const found: Detection[] = [];
   for (const group of groups.values()) {
     const clusters = clusterStable(group.txs)
-      .map((cluster) => detectionFromCluster(cluster, group.service, today))
+      .map((cluster) => detectionFromCluster(cluster, group.service, today, Boolean(group.known)))
       .filter((item): item is Detection => item !== null);
+    if (group.known) {
+      clusters.sort((a, b) => b.expectedChargeDate.localeCompare(a.expectedChargeDate));
+      const best = clusters[0];
+      if (best && !merchants.has(group.known.merchantKey)) {
+        best.merchantKey = group.known.merchantKey;
+        found.push(best);
+      }
+      continue;
+    }
     if (group.service) {
       clusters.sort((a, b) => b.expectedChargeDate.localeCompare(a.expectedChargeDate));
       const best = clusters[0];

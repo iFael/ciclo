@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detect, isGenericDescriptor, type CandidateTx } from "@/lib/matching";
+import { detect, isGenericDescriptor, knownMerchants, type CandidateTx } from "@/lib/matching";
 import { chargeAmount, mapPluggyTransaction } from "@/lib/pluggy/map";
 import { merchantDescriptor, merchantWords } from "@/lib/text";
 
@@ -64,5 +64,21 @@ describe("bank debits and foreign charges", () => {
     const usd = { ...base, description: "OPENAI *CHATGPT SUBSCR", amount: 20, currencyCode: "USD", amountInAccountCurrency: 110.4, type: "DEBIT" };
     expect(chargeAmount(usd)).toBe(110.4);
     expect(chargeAmount({ ...usd, amountInAccountCurrency: null })).toBe(20);
+  });
+});
+
+describe("learned merchants", () => {
+  it("recognizes a confirmed merchant from one charge, even through an intermediary and at a new price", () => {
+    const known = knownMerchants([
+      { status: "confirmed", merchantKey: "unknown:GRAN FACULDADE:18990", service: "unknown", descriptors: ["GRAN FACULDADE"] },
+      { status: "ignored", merchantKey: "unknown:UBER:2500", service: "unknown", descriptors: ["UBER"] },
+    ]);
+    expect(known).toHaveLength(1);
+    const once = months("MERCADOPAGO*GRAN FACULDADE", ["2026-10-28"], 209.9, "g");
+    expect(detect(once, [], TODAY)).toEqual([]);
+    const found = detect(once, [], TODAY, known);
+    expect(found).toHaveLength(1);
+    expect(found[0].merchantKey).toBe("unknown:GRAN FACULDADE:18990");
+    expect(found[0].planName).toBe("Gran Faculdade");
   });
 });

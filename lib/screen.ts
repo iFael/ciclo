@@ -1,5 +1,5 @@
 import { cadenceOf, chargeDates, isStaleCharge, lastChargeLabel } from "@/lib/charges";
-import { APPLE_CHOICES, serviceInfo } from "@/lib/catalog";
+import { appleChoices, serviceInfo } from "@/lib/catalog";
 import { diffDays, todayInSaoPaulo } from "@/lib/dates";
 import { formatBrl, formatDayMonth, formatDayMonthYear, lastSyncAgeHours, round2 } from "@/lib/format";
 import { withLearned } from "@/lib/confidence";
@@ -248,6 +248,6 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
         ? formatDayMonthYear(connection.consentExpiresAt.slice(0, 10))
         : "Sem data de vencimento",
     })),
-    appleChoices: APPLE_CHOICES,
+    appleChoices: appleChoices(),
   };
 }

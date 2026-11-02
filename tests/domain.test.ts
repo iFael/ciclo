@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, attachKnownCharges, mergeDetections } from "@/lib/actions";
-import { CATALOG, planNameFor } from "@/lib/catalog";
+import { catalog, planNameFor } from "@/lib/catalog";
 import { addMonthsClamp, diffDays } from "@/lib/dates";
 import { createMemoryStore } from "@/lib/memory-store";
 import {
@@ -224,7 +224,7 @@ describe("matching", () => {
   });
 
   it("keeps plan names inside a 15% FX move and uses the service name outside a band", () => {
-    for (const service of CATALOG) {
+    for (const service of catalog()) {
       for (const band of service.plans) {
         expect(planNameFor(service.id, band.referenceBrl * 0.85)).toBe(band.name);
         expect(planNameFor(service.id, band.referenceBrl * 1.15)).toBe(band.name);
