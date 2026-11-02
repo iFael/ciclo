@@ -204,7 +204,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
     try {
       const response = await fetch("/api/summary", { method: "POST" });
       const body = (await response.json().catch(() => ({}))) as { error?: string };
-      if (response.ok) setSyncToast({ title: "Resumo enviado", detail: "Confira sua caixa de entrada." });
+      if (response.ok) setSyncToast({ title: "Resumo enviado", detail: "Confira no seu e-mail." });
       else setSyncError(body.error ?? "Não foi possível enviar o e-mail agora.");
     } catch {
       setSyncError("Não foi possível enviar o e-mail agora.");
