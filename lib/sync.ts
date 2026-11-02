@@ -1,9 +1,11 @@
-import { mergeDetections } from "@/lib/actions";
-import { addDays, todayInSaoPaulo, transactionQueries, windowStart } from "@/lib/dates";
+import { mergeDetections, pruneSuggestions } from "@/lib/actions";
+import { todayInSaoPaulo, transactionQueries, windowStart } from "@/lib/dates";
+import { ensureLogos } from "@/lib/logos/resolve";
 import { detect } from "@/lib/matching";
 import { itemIdsForRun, mapPluggyTransaction, replaceSiblings, upsertConnectionFromItem } from "@/lib/pluggy/map";
 import type { PluggySource } from "@/lib/pluggy/client";
 import { safeLog } from "@/lib/security";
+import { storeLogoCache } from "@/lib/store";
 import type { Store } from "@/lib/store";
 import type { Connection, StoredTx } from "@/lib/types";
 
@@ -75,24 +77,35 @@ export async function syncItem(deps: SyncDeps, itemId: string, event: string, de
 
   const today = todayInSaoPaulo(now);
   const history = await deps.store.transactionsSince(windowStart(today, connection.lastSyncedAt === null));
+  const byId = new Map(history.map((row) => [row.id, row]));
+  for (const row of fetched) byId.set(row.id, { ...byId.get(row.id), ...row });
   const detections = detect(
-    history.map((row) => ({
+    [...byId.values()].map((row) => ({
       id: row.id,
       description: row.description,
       amount: row.amount,
       chargeDate: row.chargeDate,
       foreignCharge: row.foreignCharge,
+      type: row.type,
+      category: row.category,
+      operationType: row.operationType,
     })),
     state.ignoredDescriptors,
+    today,
   );
   const dates = fetched.map((row) => row.chargeDate).sort();
   connection.lastSyncedAt = now.toISOString();
   connection.lastSyncHadData = fetched.length > 0;
   if (dates.at(-1)) connection.lastDataThrough = dates.at(-1) ?? null;
-  const next = mergeDetections(state, detections, true);
+  const next = pruneSuggestions(mergeDetections(state, detections, true), detections);
+  try {
+    await ensureLogos(next, now, storeLogoCache(deps.store));
+  } catch {
+    /* logo backfill never blocks a sync */
+  }
   await deps.store.save(next);
   await deps.store.purgeUnlinked(
-    addDays(today, -90),
+    windowStart(today, false),
     next.charges.map((charge) => charge.transactionId),
   );
   console.info(JSON.stringify(safeLog({ count: fetched.length, status: connection.status, errorCode: connection.lastErrorCode })));

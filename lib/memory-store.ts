@@ -1,6 +1,6 @@
 import type { Store } from "@/lib/store";
 import { emptyState } from "@/lib/store";
-import type { AppState, StoredTx } from "@/lib/types";
+import type { AppState, ServiceLogo, StoredTx } from "@/lib/types";
 
 export function createMemoryStore(initial?: Partial<AppState> & { transactions?: StoredTx[]; reminders?: string[] }): Store {
   let state: AppState = {
@@ -15,6 +15,7 @@ export function createMemoryStore(initial?: Partial<AppState> & { transactions?:
   for (const row of initial?.transactions ?? []) transactions.set(row.id, { ...row });
   const reminders = new Map<string, string>();
   for (const key of initial?.reminders ?? []) reminders.set(key, "test");
+  const logos = new Map<string, ServiceLogo>();
 
   return {
     async load() {
@@ -50,6 +51,13 @@ export function createMemoryStore(initial?: Partial<AppState> & { transactions?:
       state = emptyState();
       transactions.clear();
       reminders.clear();
+      logos.clear();
+    },
+    async getServiceLogo(merchantKey) {
+      return logos.get(merchantKey) ?? null;
+    },
+    async saveServiceLogo(record) {
+      logos.set(record.merchantKey, { ...record });
     },
   };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, mergeDetections } from "@/lib/actions";
 import { CATALOG, planNameFor } from "@/lib/catalog";
-import { addDays, addMonthsClamp, diffDays } from "@/lib/dates";
+import { addMonthsClamp, diffDays } from "@/lib/dates";
 import { createMemoryStore } from "@/lib/memory-store";
 import {
   chargeDateOf,
@@ -78,9 +78,13 @@ describe("matching", () => {
       ["OPENAI *CHATGPT SUBSCR", "chatgpt"],
       ["GROK XAI", "grok"],
       ["ANTHROPIC* CLAUDE SUB", "claude"],
-      ["APPLE.COM/BILL", "apple"],
-      ["APPLECOMBILL", "apple"],
-      ["APPLE.COM/BILL.", "apple"],
+      ["APPLE.COM/BILL", null],
+      ["APPLECOMBILL", null],
+      ["APPLE.COM/BILL.", null],
+      ["SUPERGROK", "grok"],
+      ["NETFLIX.COM", "netflix"],
+      ["APPLE ONE", "apple-one"],
+      ["ICLOUD", "apple-one"],
       ["CLAUDETE", null],
       ["PIX CLAUDETE", null],
       ["CLAUDE", null],
@@ -98,24 +102,29 @@ describe("matching", () => {
     expect(detect([tx({ id: "r", description: "OPENAI *CHATGPT SUBSCR", amount: -110, chargeDate: "2026-01-01" })], [])).toEqual([]);
     expect(detect([tx({ id: "i", description: "IOF do rotativo", amount: 12, chargeDate: "2026-01-01", mcc: 5734 })], [])).toEqual([]);
     expect(detect([tx({ id: "m", description: "LOJA QUALQUER", amount: 50, chargeDate: "2026-01-01", mcc: 5734 })], [])).toEqual([]);
-    expect(detect([tx({ id: "ok", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-01", mcc: 5734 })], [])).toHaveLength(1);
+    expect(detect([tx({ id: "ok", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-01", mcc: 5734 })], [], "2026-01-02")).toEqual([]);
     expect(detect([tx({ id: "api", description: "OPENAI *API USAGE", amount: 20, chargeDate: "2026-01-01" })], [])).toEqual([]);
   });
 
-  it("treats 28 and 35 day gaps as monthly and 27 and 36 as not", () => {
-    const start = "2026-04-01";
-    const pair = (days: number) =>
-      detect(
-        [
-          tx({ id: "a", description: "OPENAI *CHATGPT SUBSCR", chargeDate: start }),
-          tx({ id: "b", description: "OPENAI *CHATGPT SUBSCR", chargeDate: addDays(start, days) }),
-        ],
-        [],
-      );
-    expect(pair(28)[0].confirm).toBe(true);
-    expect(pair(35)[0].confirm).toBe(true);
-    expect(pair(27)[0].confirm).toBe(false);
-    expect(pair(36)[0].confirm).toBe(false);
+  it("suggests three recent calendar months and ignores a pair", () => {
+    const months = ["2026-08-12", "2026-09-12", "2026-10-12"];
+    const found = detect(
+      months.map((chargeDate, index) => tx({ id: `m${index}`, description: "OPENAI *CHATGPT SUBSCR", chargeDate })),
+      [],
+      "2026-11-01",
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0].confirm).toBe(false);
+    expect(found[0].expectedChargeDate).toBe("2026-10-12");
+    const pair = detect(
+      [
+        tx({ id: "a", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-09-12" }),
+        tx({ id: "b", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-10-12" }),
+      ],
+      [],
+      "2026-11-01",
+    );
+    expect(pair).toEqual([]);
   });
 
   it("accepts month-end and leap-year sequences", () => {
@@ -129,16 +138,19 @@ describe("matching", () => {
     const found = detect(
       chain.map((chargeDate, index) => tx({ id: `c${index}`, description: "ANTHROPIC* CLAUDE SUB", amount: 110, chargeDate })),
       [],
+      "2026-04-10",
     );
     expect(found).toHaveLength(1);
-    expect(found[0].confirm).toBe(true);
+    expect(found[0].confirm).toBe(false);
+    expect(found[0].checks.find((check) => check.id === "streak")?.passed).toBe(true);
     const leap = ["2028-01-31", "2028-02-29", "2028-03-31"];
     expect(
       detect(
         leap.map((chargeDate, index) => tx({ id: `l${index}`, description: "GROK XAI", amount: 165, chargeDate })),
         [],
-      )[0].confirm,
-    ).toBe(true);
+        "2028-04-10",
+      )[0]?.service,
+    ).toBe("grok");
   });
 
   it("applies 2% BRL and 10% foreign tolerance, and a big jump is one plan change", () => {
@@ -146,88 +158,58 @@ describe("matching", () => {
     expect(withinTolerance(100, 102.1, false)).toBe(false);
     expect(withinTolerance(100, 109.9, true)).toBe(true);
     expect(withinTolerance(100, 110.1, true)).toBe(false);
-    const foreign = (amount: number) =>
-      detect(
-        [
-          tx({ id: "a", description: "OPENAI *CHATGPT SUBSCR", amount: 100, chargeDate: "2026-01-01" }),
-          tx({ id: "b", description: "OPENAI *CHATGPT SUBSCR", amount, chargeDate: "2026-01-31" }),
-        ],
-        [],
-      )[0];
-    expect(foreign(109.9).planChangeNotice).toBeNull();
-    expect(foreign(110.1).planChangeNotice).toBeTruthy();
-    expect(foreign(110.1).confirm).toBe(true);
-    const brl = (amount: number) =>
-      detect(
-        [
-          tx({ id: "a", description: "PADARIA DO ZE", amount: 100, chargeDate: "2026-01-01" }),
-          tx({ id: "b", description: "PADARIA DO ZE", amount, chargeDate: "2026-01-31" }),
-        ],
-        [],
-      )[0];
-    expect(brl(101.9).planChangeNotice).toBeNull();
-    expect(brl(102.1).planChangeNotice).toBeTruthy();
+    const stable = detect(
+      ["2026-08-12", "2026-09-12", "2026-10-12"].map((chargeDate, index) =>
+        tx({ id: `f${index}`, description: "OPENAI *CHATGPT SUBSCR", amount: index === 2 ? 109.9 : 100, chargeDate }),
+      ),
+      [],
+      "2026-11-01",
+    );
+    expect(stable).toHaveLength(1);
+    expect(stable[0].planChangeNotice).toBeNull();
     const jump = detect(
-      [
-        tx({ id: "a", description: "OPENAI *CHATGPT SUBSCR", amount: 110, chargeDate: "2026-01-01" }),
-        tx({ id: "b", description: "OPENAI *CHATGPT SUBSCR", amount: 110, chargeDate: "2026-01-31" }),
-        tx({ id: "c", description: "OPENAI *CHATGPT SUBSCR", amount: 250, chargeDate: "2026-03-02" }),
-      ],
+      ["2026-08-12", "2026-09-12", "2026-10-12"].flatMap((chargeDate, index) => [
+        tx({ id: `a${index}`, description: "PADARIA DO ZE", amount: 40 + index * 30, chargeDate }),
+      ]),
       [],
+      "2026-11-01",
     );
-    expect(jump).toHaveLength(1);
-    expect(jump[0].planChangeNotice).toBeTruthy();
-    expect(mergeDetections(emptyState(), jump, true).subscriptions).toHaveLength(1);
+    expect(jump).toEqual([]);
   });
 
-  it("splits two Apple charges in a month by amount", () => {
+  it("never suggests a generic Apple bill, even across six months", () => {
+    const months = ["2026-05-04", "2026-06-04", "2026-07-04", "2026-08-04", "2026-09-04", "2026-10-04"];
     const found = detect(
-      [
-        tx({ id: "a", description: "APPLE.COM/BILL", amount: 50, chargeDate: "2026-03-05" }),
-        tx({ id: "b", description: "APPLECOMBILL", amount: 120, chargeDate: "2026-03-20" }),
-      ],
+      months.map((chargeDate, index) => tx({ id: `a${index}`, description: "APPLE.COM/BILL", amount: 21.9, chargeDate })),
       [],
+      "2026-11-01",
     );
-    expect(found).toHaveLength(2);
-    expect(found.every((item) => item.service === "apple" && item.confirm === false)).toBe(true);
-    expect(found.map((item) => item.planName)).toEqual(["Assinatura via Apple", "Assinatura via Apple"]);
-    expect(new Set(found.map((item) => item.amount))).toEqual(new Set([50, 120]));
+    expect(found).toEqual([]);
   });
 
-  it("counts occurrences for known and unknown merchants", () => {
-    const one = detect([tx({ id: "a", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-01" })], []);
-    expect(one[0].confirm).toBe(false);
-    expect(one[0].suggestionLabel).toBe("Pode ser recorrente");
-    const two = detect(
-      [
-        tx({ id: "a", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-01" }),
-        tx({ id: "b", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-31" }),
-      ],
+  it("does not auto-confirm a known service; three months stay a suggestion", () => {
+    const one = detect([tx({ id: "a", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-10-01" })], [], "2026-11-01");
+    expect(one).toEqual([]);
+    const found = detect(
+      ["2026-08-01", "2026-09-01", "2026-10-01"].map((chargeDate, index) =>
+        tx({ id: `c${index}`, description: "OPENAI *CHATGPT SUBSCR", chargeDate }),
+      ),
       [],
+      "2026-11-01",
     );
-    expect(two[0].confirm).toBe(true);
-    expect(two[0].autoConfirmed).toBe(true);
-    const unknown = (count: number) =>
-      detect(
-        Array.from({ length: count }, (_, index) =>
-          tx({ id: `u${index}`, description: "PADARIA DO ZE", amount: 40, chargeDate: addDays("2026-01-01", index * 30) }),
-        ),
-        [],
-      )[0];
-    expect(unknown(2).checked).toBe(false);
-    expect(unknown(2).confirm).toBe(false);
-    expect(unknown(3).checked).toBe(true);
-    expect(unknown(3).confirm).toBe(false);
+    expect(found[0].confirm).toBe(false);
+    expect(found[0].autoConfirmed).toBe(false);
+    expect(found[0].suggestionLabel).toBe("3 meses seguidos");
   });
 
-  it("drops ignored descriptors forever", () => {
-    const txs = [
-      tx({ id: "a", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-01" }),
-      tx({ id: "b", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-31" }),
-    ];
-    const merged = mergeDetections(emptyState(), detect([txs[0]], []), true);
+  it("drops an ignored merchant and amount group forever", () => {
+    const txs = ["2026-08-01", "2026-09-01", "2026-10-01"].map((chargeDate, index) =>
+      tx({ id: `c${index}`, description: "OPENAI *CHATGPT SUBSCR", chargeDate }),
+    );
+    const merged = mergeDetections(emptyState(), detect(txs, [], "2026-11-01"), true);
     const ignored = applyAction(merged, { action: "ignore", id: merged.subscriptions[0].id }, NOW);
-    expect(detect(txs, ignored.ignoredDescriptors)).toEqual([]);
+    expect(ignored.ignoredDescriptors).toContain("merchant:chatgpt");
+    expect(detect(txs, ignored.ignoredDescriptors, "2026-11-01")).toEqual([]);
   });
 
   it("keeps plan names inside a 15% FX move and uses the service name outside a band", () => {
@@ -279,11 +261,19 @@ describe("charge dates", () => {
 
 describe("screen and safety", () => {
   it("builds the card copy and hides server identifiers", () => {
-    const model = buildScreen(state(), NOW);
+    const model = buildScreen(
+      state({
+        charges: [{ subscriptionId: "sub-1", chargeDate: "2026-10-20", amount: 110, transactionId: "tx-1", resolved: false }],
+      }),
+      NOW,
+    );
     expect(model.monthlyLabel).toBe("R$ 110/mês");
     expect(model.annualLabel).toBe("≈ R$ 1.320/ano");
     expect(model.cards[0].priceLabel).toBe("≈ R$ 110/mês");
-    expect(model.cards[0].nextChargeLabel).toBe("Próxima cobrança: 19/11, em 18 dias");
+    expect(model.cards[0].nextChargeLabel).toBe("Última cobrança: 20/10");
+    expect(model.cards[0].nextChargeLabel).not.toContain("Próxima cobrança");
+    expect(model.cards[0].logoUrl).toBe("/logos/chatgpt.svg");
+    expect(model.cards[0].logoFallback).toBe(false);
     expect(model.cards[0].manageLabel).toBe("Gerenciar ChatGPT Plus no site da OpenAI, abre em nova aba");
     expect(model.cards[0].removeConfirm).toBe("Isso não cancela sua assinatura na OpenAI. Para parar de pagar, use Gerenciar.");
     expect(model.footer).toBe("Atualizado há 2 h");
@@ -329,15 +319,15 @@ describe("screen and safety", () => {
     const today = new Date("2026-10-08T15:00:00.000Z");
     const base = state({
       connections: [connection({ lastDataThrough: "2026-10-05", lastSyncHadData: true, status: "active" })],
-      subscriptions: [subscription({ expectedChargeDate: "2026-10-01", amount: 110 })],
+      subscriptions: [subscription({ expectedChargeDate: "2026-08-20", amount: 110 })],
     });
     expect(buildScreen(base, today).banners.some((banner) => banner.text.startsWith("Parece cancelada?"))).toBe(true);
     const stale = state({
       connections: [connection({ status: "expired", lastSyncHadData: false, lastDataThrough: "2026-10-05" })],
-      subscriptions: [subscription({ expectedChargeDate: "2026-10-01" })],
+      subscriptions: [subscription({ expectedChargeDate: "2026-08-20" })],
     });
     expect(buildScreen(stale, today).banners.some((banner) => banner.text.startsWith("Parece cancelada?"))).toBe(false);
-    const early = buildScreen(base, new Date("2026-10-07T15:00:00.000Z"));
+    const early = buildScreen(base, new Date("2026-09-20T15:00:00.000Z"));
     expect(early.banners.some((banner) => banner.text.startsWith("Parece cancelada?"))).toBe(false);
     const paid = applyAction(base, { action: "still-paying", id: "sub-1" }, today);
     expect(buildScreen(paid, today).monthlyTotal).toBe(110);
@@ -365,12 +355,12 @@ describe("screen and safety", () => {
 
   it("undoes an automatic confirm and a removal", () => {
     const found = detect(
-      [
-        tx({ id: "a", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-01" }),
-        tx({ id: "b", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-31" }),
-      ],
+      ["2026-08-01", "2026-09-01", "2026-10-01"].map((chargeDate, index) =>
+        tx({ id: `c${index}`, description: "OPENAI *CHATGPT SUBSCR", chargeDate }),
+      ),
       [],
-    );
+      "2026-11-01",
+    ).map((item) => ({ ...item, confirm: true, autoConfirmed: true }));
     const confirmed = mergeDetections(state({ subscriptions: [] }), found, true);
     expect(confirmed.subscriptions[0].status).toBe("confirmed");
     const undone = applyAction(confirmed, { action: "undo", id: confirmed.subscriptions[0].id }, NOW);
@@ -484,7 +474,7 @@ describe("screen and safety", () => {
 
     const ignored = applyAction(removed, { action: "ignore", id: "claude" }, NOW);
     expect(ignored.subscriptions.find((item) => item.id === "claude")?.status).toBe("ignored");
-    expect(ignored.ignoredDescriptors).toContain("ANTHROPIC CLAUDE SUB");
+    expect(ignored.ignoredDescriptors).toContain("merchant:claude");
     expect(buildScreen(ignored, NOW).suggestions.map((item) => item.planName)).toEqual(["Suno Inc"]);
     const hidden = mergeDetections(ignored, found, true);
     expect(hidden.subscriptions.filter((item) => item.merchantKey === "claude").every((item) => item.status === "ignored")).toBe(true);

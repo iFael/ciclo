@@ -59,7 +59,7 @@ describe("pluggy client", () => {
   it("splits incremental and reread queries", () => {
     const first = transactionQueries({ accountId: "acc", lastSyncedAt: null, today: "2026-11-01" });
     const next = transactionQueries({ accountId: "acc", lastSyncedAt: "2026-11-01T12:00:00.000Z", today: "2026-11-01" });
-    expect(first).toEqual([{ accountId: "acc", dateFrom: "2025-11-01" }]);
+    expect(first).toEqual([{ accountId: "acc", dateFrom: "2025-09-01" }]);
     expect(next[0]).toEqual({ accountId: "acc", createdAtFrom: "2026-10-31T12:00:00.000Z" });
     expect(next[1]).toEqual({ accountId: "acc", dateFrom: "2026-09-27" });
     for (const query of [...first, ...next]) {

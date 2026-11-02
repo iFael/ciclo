@@ -1,16 +1,28 @@
-import { isForeignService, planNameFor } from "@/lib/catalog";
-import { addMonthsClamp, diffDays, saoPauloCivilDate } from "@/lib/dates";
-import { formatBrl, round2 } from "@/lib/format";
+import { buildConfidence, type Confidence, type ConfidenceCheck } from "@/lib/confidence";
+import { CATALOG, isForeignService, planNameFor, serviceInfo } from "@/lib/catalog";
+import { diffDays, saoPauloCivilDate, todayInSaoPaulo } from "@/lib/dates";
+import { formatBrl, formatDayMonth, round2 } from "@/lib/format";
+import { excludedKind, isGenericDescriptor, isIofRotativo, type TxSignals } from "@/lib/noise";
+import {
+  AMOUNT_TOLERANCE,
+  ANNUAL_GAP_MAX,
+  ANNUAL_GAP_MIN,
+  ANNUAL_GRACE_DAYS,
+  DAY_WINDOW,
+  MIN_ANNUAL_OCCURRENCES,
+  MIN_MONTHLY_OCCURRENCES,
+  MONTHLY_GRACE_DAYS,
+} from "@/lib/rules";
+import { descriptorWords, matchesPattern, normalizeDescriptor } from "@/lib/text";
+
+export { isIofRotativo, excludedKind, isGenericDescriptor } from "@/lib/noise";
+export { normalizeDescriptor, descriptorWords } from "@/lib/text";
 
 export const BRL_TOLERANCE = 0.02;
 export const FOREIGN_TOLERANCE = 0.1;
 
-export type ServiceId = "chatgpt" | "claude" | "grok" | "apple";
-
-export type CandidateTx = {
+export type CandidateTx = TxSignals & {
   id: string;
-  description: string;
-  amount: number;
   chargeDate: string;
   mcc?: number;
   foreignCharge?: boolean;
@@ -29,54 +41,21 @@ export type Detection = {
   descriptors: string[];
   suggestionLabel: string | null;
   charges: { transactionId: string; chargeDate: string; amount: number }[];
+  /** Last real charge. Not a projected next date. */
   expectedChargeDate: string;
+  cadence: "monthly" | "annual";
+  confidenceScore: number;
+  confidenceLabel: Confidence["label"];
+  checks: ConfidenceCheck[];
 };
 
-export function normalizeDescriptor(input: string): string {
-  return input
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-export function descriptorWords(input: string): string[] {
-  const normalized = normalizeDescriptor(input);
-  return normalized ? normalized.split(" ") : [];
-}
-
-function hasWord(words: string[], word: string): boolean {
-  return words.includes(word);
-}
-
-function hasPhrase(words: string[], phrase: string[]): boolean {
-  for (let index = 0; index <= words.length - phrase.length; index += 1) {
-    if (phrase.every((word, offset) => words[index + offset] === word)) return true;
-  }
-  return false;
-}
-
-export function isIofRotativo(description: string): boolean {
-  const words = descriptorWords(description);
-  return hasWord(words, "IOF") && hasWord(words, "ROTATIVO");
-}
-
-export function classifyDescriptor(description: string): ServiceId | null {
-  if (isIofRotativo(description)) return null;
-  const words = descriptorWords(description);
-  if (hasWord(words, "OPENAI") && hasWord(words, "CHATGPT")) return "chatgpt";
-  if (hasWord(words, "ANTHROPIC") && hasWord(words, "CLAUDE")) return "claude";
-  if (hasWord(words, "GROK") && hasWord(words, "XAI")) return "grok";
-  if (hasPhrase(words, ["APPLE", "COM", "BILL"]) || hasWord(words, "APPLECOMBILL")) return "apple";
-  return null;
-}
-
 export function withinTolerance(base: number, next: number, foreign: boolean): boolean {
+  return withinPercent(base, next, foreign ? FOREIGN_TOLERANCE : BRL_TOLERANCE);
+}
+
+export function withinPercent(base: number, next: number, percent: number): boolean {
   if (base === 0) return false;
-  const pct = Math.abs(next - base) / Math.abs(base);
-  return pct <= (foreign ? FOREIGN_TOLERANCE : BRL_TOLERANCE) + 1e-9;
+  return Math.abs(next - base) / Math.abs(base) <= percent + 1e-9;
 }
 
 export function chargeDateOf(tx: {
@@ -88,194 +67,361 @@ export function chargeDateOf(tx: {
   return tx.date.slice(0, 10);
 }
 
-function latestMonthlyChain(sorted: CandidateTx[]): CandidateTx[] {
-  if (sorted.length === 0) return [];
-  const chain = [sorted[sorted.length - 1]];
-  for (let index = sorted.length - 2; index >= 0; index -= 1) {
-    const gap = diffDays(sorted[index].chargeDate, chain[0].chargeDate);
-    if (gap >= 28 && gap <= 35) chain.unshift(sorted[index]);
-    else break;
-  }
-  return chain;
+export function merchantIgnoreToken(merchantKey: string): string {
+  return `merchant:${merchantKey}`;
 }
 
-function noticeFor(chain: CandidateTx[], foreign: boolean): string | null {
-  let anchor = chain[0]?.amount ?? 0;
-  let notice: string | null = null;
-  for (const charge of chain.slice(1)) {
-    if (!withinTolerance(anchor, charge.amount, foreign)) {
-      notice = `O valor passou de ${formatBrl(anchor)} para ${formatBrl(charge.amount)}.`;
-      anchor = charge.amount;
+export function classifyDescriptor(description: string): string | null {
+  const words = descriptorWords(description);
+  if (words.includes("OPENAI") && words.includes("API")) return null;
+  for (const service of CATALOG) {
+    if (service.patterns.some((phrase) => matchesPattern(words, phrase))) return service.id;
+  }
+  return null;
+}
+
+export function parseIgnored(ignored: string[]): { merchants: Set<string>; descriptors: Set<string> } {
+  const merchants = new Set<string>();
+  const descriptors = new Set<string>();
+  for (const item of ignored) {
+    if (item.startsWith("merchant:")) merchants.add(item.slice("merchant:".length));
+    else descriptors.add(normalizeDescriptor(item));
+  }
+  return { merchants, descriptors };
+}
+
+type MonthStreak = { months: string[]; gapUsed: boolean };
+
+function monthIndex(month: string): number {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return year * 12 + (monthNumber - 1);
+}
+
+/** Streak ending at the latest month. At most one missed month inside it. */
+export function monthlyStreak(dates: string[]): MonthStreak | null {
+  const months = [...new Set(dates.map((date) => date.slice(0, 7)))].sort();
+  if (months.length < MIN_MONTHLY_OCCURRENCES) return null;
+  const included = [months[months.length - 1]];
+  let gapUsed = false;
+  let previous = months[months.length - 1];
+  for (let index = months.length - 2; index >= 0; index -= 1) {
+    const delta = monthIndex(previous) - monthIndex(months[index]);
+    if (delta === 1) {
+      included.push(months[index]);
+      previous = months[index];
+    } else if (delta === 2 && !gapUsed) {
+      gapUsed = true;
+      included.push(months[index]);
+      previous = months[index];
+    } else if (delta === 0) {
+      continue;
+    } else {
+      break;
     }
   }
-  return notice;
+  if (included.length < MIN_MONTHLY_OCCURRENCES) return null;
+  return { months: included.sort(), gapUsed };
 }
 
-function toCharges(chain: CandidateTx[]): Detection["charges"] {
-  return chain.map((charge) => ({
-    transactionId: charge.id,
-    chargeDate: charge.chargeDate,
-    amount: round2(charge.amount),
-  }));
+export function annualDates(dates: string[]): string[] | null {
+  const sorted = [...dates].sort();
+  if (sorted.length < MIN_ANNUAL_OCCURRENCES) return null;
+  const picked = [sorted[sorted.length - 1]];
+  let cursor = sorted[sorted.length - 1];
+  for (let index = sorted.length - 2; index >= 0; index -= 1) {
+    const gap = diffDays(sorted[index], cursor);
+    if (gap >= ANNUAL_GAP_MIN && gap <= ANNUAL_GAP_MAX) {
+      picked.push(sorted[index]);
+      cursor = sorted[index];
+    }
+  }
+  if (picked.length < MIN_ANNUAL_OCCURRENCES) return null;
+  return picked.sort();
 }
 
-function detectionFrom(input: {
-  merchantKey: string;
-  service: string;
-  chain: CandidateTx[];
-  descriptors: string[];
-  foreign: boolean;
-  mode: "known" | "apple" | "unknown";
-}): Detection | null {
-  const chain = latestMonthlyChain([...input.chain].sort((a, b) => a.chargeDate.localeCompare(b.chargeDate)));
-  if (input.mode === "unknown" && chain.length < 2) return null;
-  if (chain.length === 0) return null;
-  const amount = round2(chain[chain.length - 1].amount);
-  const expectedChargeDate = addMonthsClamp(chain[chain.length - 1].chargeDate, 1);
-  const planChangeNotice = input.mode === "apple" ? null : noticeFor(chain, input.foreign);
-  if (input.mode === "apple") {
-    return {
-      merchantKey: input.merchantKey,
-      service: "apple",
-      planName: "Assinatura via Apple",
-      amount,
-      approximate: true,
-      checked: chain.length >= 2,
-      autoConfirmed: false,
-      confirm: false,
-      planChangeNotice: null,
-      descriptors: input.descriptors,
-      suggestionLabel: chain.length < 2 ? "Pode ser recorrente" : null,
-      charges: toCharges(chain),
-      expectedChargeDate,
-    };
+function dayOf(iso: string): number {
+  return Number(iso.slice(8, 10));
+}
+
+function dayDistance(left: number, right: number): number {
+  const diff = Math.abs(left - right);
+  return Math.min(diff, 30 - diff);
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid];
+  return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+function onePerMonth(txs: CandidateTx[], months: string[]): CandidateTx[] {
+  const wanted = new Set(months);
+  const byMonth = new Map<string, CandidateTx>();
+  for (const tx of [...txs].sort((a, b) => a.chargeDate.localeCompare(b.chargeDate))) {
+    const month = tx.chargeDate.slice(0, 7);
+    if (!wanted.has(month)) continue;
+    byMonth.set(month, tx);
   }
-  if (input.mode === "unknown") {
-    return {
-      merchantKey: input.merchantKey,
-      service: "unknown",
-      planName: titleCase(input.descriptors[0] ?? "Assinatura"),
-      amount,
-      approximate: false,
-      checked: chain.length >= 3,
-      autoConfirmed: false,
-      confirm: false,
-      planChangeNotice,
-      descriptors: input.descriptors,
-      suggestionLabel: null,
-      charges: toCharges(chain),
-      expectedChargeDate,
-    };
+  return [...byMonth.values()].sort((a, b) => a.chargeDate.localeCompare(b.chargeDate));
+}
+
+function stableAmounts(amounts: number[]): boolean {
+  if (amounts.length === 0) return false;
+  const min = Math.min(...amounts);
+  const max = Math.max(...amounts);
+  if (min <= 0) return false;
+  return (max - min) / min <= AMOUNT_TOLERANCE + 1e-9;
+}
+
+function clusterStable(txs: CandidateTx[]): CandidateTx[][] {
+  const sorted = [...txs].sort((a, b) => a.amount - b.amount || a.chargeDate.localeCompare(b.chargeDate));
+  const clusters: CandidateTx[][] = [];
+  for (const tx of sorted) {
+    const found = clusters.find((group) => stableAmounts(group.map((item) => item.amount).concat(tx.amount)));
+    if (found) found.push(tx);
+    else clusters.push([tx]);
   }
-  const confirmed = chain.length >= 2;
-  return {
-    merchantKey: input.merchantKey,
-    service: input.service,
-    planName: planNameFor(input.service, amount),
-    amount,
-    approximate: true,
-    checked: false,
-    autoConfirmed: confirmed,
-    confirm: confirmed,
-    planChangeNotice,
-    descriptors: input.descriptors,
-    suggestionLabel: confirmed ? null : "Pode ser recorrente",
-    charges: toCharges(chain),
-    expectedChargeDate,
+  return clusters;
+}
+
+function recentEnough(last: string, today: string, cadence: "monthly" | "annual"): boolean {
+  const age = diffDays(last, today);
+  const grace = cadence === "annual" ? ANNUAL_GRACE_DAYS : MONTHLY_GRACE_DAYS;
+  return age >= 0 && age <= grace;
+}
+
+type Summary = {
+  passed: boolean;
+  cadence: "monthly" | "annual";
+  occurrences: number;
+  streakPassed: boolean;
+  recent: boolean;
+  stable: boolean;
+  dayMatch: boolean;
+  last: string | null;
+  medianDay: number | null;
+  medianAmount: number;
+  gapUsed: boolean;
+  picked: CandidateTx[];
+};
+
+function summarize(txs: CandidateTx[], today: string): Summary {
+  const amounts = txs.map((tx) => tx.amount);
+  const stable = stableAmounts(amounts);
+  const medianAmount = amounts.length ? median(amounts) : 0;
+  const empty: Summary = {
+    passed: false,
+    cadence: "monthly",
+    occurrences: 0,
+    streakPassed: false,
+    recent: false,
+    stable,
+    dayMatch: false,
+    last: null,
+    medianDay: null,
+    medianAmount,
+    gapUsed: false,
+    picked: [],
   };
+  if (!stable || txs.length === 0) return empty;
+
+  const monthly = monthlyStreak(txs.map((tx) => tx.chargeDate));
+  if (monthly) {
+    const picked = onePerMonth(txs, monthly.months);
+    const last = picked.at(-1)?.chargeDate ?? null;
+    const days = picked.map((tx) => dayOf(tx.chargeDate));
+    const medianDay = days.length ? median(days) : null;
+    const dayMatch = medianDay !== null && days.every((day) => dayDistance(day, medianDay) <= DAY_WINDOW);
+    const recent = last !== null && recentEnough(last, today, "monthly");
+    return {
+      passed: recent && picked.length >= MIN_MONTHLY_OCCURRENCES,
+      cadence: "monthly",
+      occurrences: picked.length,
+      streakPassed: picked.length >= MIN_MONTHLY_OCCURRENCES,
+      recent,
+      stable,
+      dayMatch,
+      last,
+      medianDay,
+      medianAmount,
+      gapUsed: monthly.gapUsed,
+      picked,
+    };
+  }
+
+  const yearly = annualDates(txs.map((tx) => tx.chargeDate));
+  if (yearly) {
+    const wanted = new Set(yearly);
+    const picked = txs.filter((tx) => wanted.has(tx.chargeDate)).sort((a, b) => a.chargeDate.localeCompare(b.chargeDate));
+    const last = picked.at(-1)?.chargeDate ?? null;
+    const days = picked.map((tx) => dayOf(tx.chargeDate));
+    const medianDay = days.length ? median(days) : null;
+    const dayMatch = medianDay !== null && days.every((day) => dayDistance(day, medianDay) <= DAY_WINDOW);
+    const recent = last !== null && recentEnough(last, today, "annual");
+    return {
+      passed: recent && picked.length >= MIN_ANNUAL_OCCURRENCES,
+      cadence: "annual",
+      occurrences: picked.length,
+      streakPassed: picked.length >= MIN_ANNUAL_OCCURRENCES,
+      recent,
+      stable,
+      dayMatch,
+      last,
+      medianDay,
+      medianAmount,
+      gapUsed: false,
+      picked,
+    };
+  }
+
+  return empty;
+}
+
+function streakDetail(summary: Summary): string {
+  if (summary.occurrences === 0) return "sem repetição";
+  if (summary.cadence === "annual") {
+    return summary.occurrences === 1 ? "1 cobrança anual" : `${summary.occurrences} cobranças anuais`;
+  }
+  if (summary.gapUsed) return `${summary.occurrences} cobranças mensais`;
+  return summary.occurrences === 1 ? "1 mês" : `${summary.occurrences} meses seguidos`;
+}
+
+export function confidenceFor(input: {
+  summary: Summary;
+  catalog: boolean;
+  catalogName: string;
+}): Confidence {
+  const last = input.summary.last;
+  return buildConfidence({
+    streakPassed: input.summary.streakPassed,
+    occurrences: input.summary.occurrences,
+    streakDetail: streakDetail(input.summary),
+    dayPassed: input.summary.dayMatch,
+    dayDetail: input.summary.dayMatch && input.summary.medianDay !== null ? `sempre perto do dia ${input.summary.medianDay}` : "dias variados",
+    amountPassed: input.summary.stable && input.summary.picked.length > 0,
+    amountDetail: input.summary.stable && input.summary.medianAmount > 0 ? formatBrl(round2(input.summary.medianAmount)) : "valores variados",
+    catalogPassed: input.catalog,
+    catalogDetail: input.catalog ? input.catalogName : "fora do catálogo",
+    recentPassed: input.summary.recent,
+    recentDetail: last ? `última em ${formatDayMonth(last)}` : "sem cobrança recente",
+  });
 }
 
 function titleCase(normalized: string): string {
   return normalized
     .toLowerCase()
     .split(" ")
-    .filter((word) => !["subscr", "subscription", "bill"].includes(word))
+    .filter((word) => !["subscr", "subscription", "bill", "com"].includes(word))
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
 
-function clusterByAmount(txs: CandidateTx[], foreign: boolean): CandidateTx[][] {
-  const sorted = [...txs].sort((a, b) => a.amount - b.amount || a.chargeDate.localeCompare(b.chargeDate));
-  const clusters: { anchor: number; txs: CandidateTx[] }[] = [];
-  for (const tx of sorted) {
-    const found = clusters.find((cluster) => withinTolerance(cluster.anchor, tx.amount, foreign));
-    if (found) found.txs.push(tx);
-    else clusters.push({ anchor: tx.amount, txs: [tx] });
-  }
-  return clusters.map((cluster) => cluster.txs);
+function planTitle(service: string | null, descriptor: string, amount: number): string {
+  if (!service) return titleCase(descriptor) || "Assinatura";
+  const words = descriptorWords(descriptor);
+  if (service === "apple-one" && words.includes("ICLOUD") && !words.includes("ONE")) return "iCloud";
+  return planNameFor(service, amount);
 }
 
-export function detect(transactions: CandidateTx[], ignored: string[]): Detection[] {
-  const ignoredSet = new Set(ignored.map((item) => normalizeDescriptor(item)));
+function detectionFromCluster(txs: CandidateTx[], service: string | null, today: string): Detection | null {
+  const summary = summarize(txs, today);
+  if (!summary.passed || !summary.last) return null;
+  const descriptor = normalizeDescriptor(txs[0]?.description ?? "");
+  const info = service ? serviceInfo(service) : undefined;
+  const amount = round2(summary.medianAmount);
+  const confidence = confidenceFor({
+    summary,
+    catalog: Boolean(info && service !== "apple"),
+    catalogName: info?.serviceName ?? "Assinatura",
+  });
+  const bucket = Math.round(amount * 100);
+  const merchantKey = service ? service : `unknown:${descriptor}:${bucket}`;
+  return {
+    merchantKey,
+    service: service ?? "unknown",
+    planName: planTitle(service, descriptor, amount),
+    amount,
+    approximate: service ? isForeignService(service) : txs.some((tx) => tx.foreignCharge),
+    checked: confidence.score >= 80,
+    autoConfirmed: false,
+    confirm: false,
+    planChangeNotice: null,
+    descriptors: [...new Set(txs.map((tx) => normalizeDescriptor(tx.description)))],
+    suggestionLabel: streakDetail(summary),
+    charges: summary.picked.map((charge) => ({
+      transactionId: charge.id,
+      chargeDate: charge.chargeDate,
+      amount: round2(charge.amount),
+    })),
+    expectedChargeDate: summary.last,
+    cadence: summary.cadence,
+    confidenceScore: confidence.score,
+    confidenceLabel: confidence.label,
+    checks: confidence.checks,
+  };
+}
+
+export function detect(transactions: CandidateTx[], ignored: string[] = [], today = todayInSaoPaulo()): Detection[] {
+  const { merchants, descriptors } = parseIgnored(ignored);
   const usable = transactions.filter((tx) => {
-    if (tx.amount <= 0) return false;
-    if (isIofRotativo(tx.description)) return false;
-    const normalized = normalizeDescriptor(tx.description);
-    if (ignoredSet.has(normalized)) return false;
+    if (excludedKind(tx)) return false;
+    const service = classifyDescriptor(tx.description);
+    if (!service && isGenericDescriptor(tx.description)) return false;
+    if (descriptors.has(normalizeDescriptor(tx.description))) return false;
     return true;
   });
 
-  const groups = new Map<string, CandidateTx[]>();
-  const unknown = new Map<string, CandidateTx[]>();
+  const groups = new Map<string, { service: string | null; txs: CandidateTx[] }>();
   for (const tx of usable) {
     const service = classifyDescriptor(tx.description);
-    if (!service) {
-      const key = normalizeDescriptor(tx.description);
-      unknown.set(key, [...(unknown.get(key) ?? []), tx]);
-      continue;
-    }
-    groups.set(service, [...(groups.get(service) ?? []), tx]);
+    const key = service ?? `raw:${normalizeDescriptor(tx.description)}`;
+    const group = groups.get(key) ?? { service, txs: [] };
+    group.txs.push(tx);
+    groups.set(key, group);
   }
 
   const found: Detection[] = [];
-  for (const [service, txs] of groups) {
-    if (service === "apple") {
-      for (const cluster of clusterByAmount(txs, true)) {
-        const anchor = [...cluster].sort((a, b) => a.amount - b.amount)[0];
-        const detection = detectionFrom({
-          merchantKey: `apple:${Math.round(anchor.amount * 100)}`,
-          service,
-          chain: cluster,
-          descriptors: uniqueDescriptors(cluster),
-          foreign: true,
-          mode: "apple",
-        });
-        if (detection) found.push(detection);
+  for (const group of groups.values()) {
+    const clusters = clusterStable(group.txs)
+      .map((cluster) => detectionFromCluster(cluster, group.service, today))
+      .filter((item): item is Detection => item !== null);
+    if (group.service) {
+      clusters.sort((a, b) => b.expectedChargeDate.localeCompare(a.expectedChargeDate));
+      const best = clusters[0];
+      if (best && !merchants.has(group.service)) {
+        best.merchantKey = group.service;
+        found.push(best);
       }
       continue;
     }
-    const detection = detectionFrom({
-      merchantKey: service,
-      service,
-      chain: txs,
-      descriptors: uniqueDescriptors(txs),
-      foreign: isForeignService(service),
-      mode: "known",
-    });
-    if (detection) found.push(detection);
+    for (const item of clusters) {
+      if (!merchants.has(item.merchantKey)) found.push(item);
+    }
   }
 
-  for (const [descriptor, txs] of unknown) {
-    const foreign = txs.some((tx) => tx.foreignCharge);
-    const clusters = foreign ? clusterByAmount(txs, true) : [txs];
-    clusters.forEach((cluster, index) => {
-      const detection = detectionFrom({
-        merchantKey: clusters.length > 1 ? `unknown:${descriptor}:${index}` : `unknown:${descriptor}`,
-        service: "unknown",
-        chain: cluster,
-        descriptors: [descriptor],
-        foreign,
-        mode: "unknown",
-      });
-      if (detection) {
-        detection.approximate = foreign;
-        found.push(detection);
-      }
-    });
-  }
+  found.sort((a, b) => b.confidenceScore - a.confidenceScore || a.planName.localeCompare(b.planName, "pt-BR"));
   return found;
 }
 
-function uniqueDescriptors(txs: CandidateTx[]): string[] {
-  return [...new Set(txs.map((tx) => normalizeDescriptor(tx.description)))];
+/** Score already-stored charges the same way the detector does, for the card UI. */
+export function scoreStoredCharges(input: {
+  charges: { chargeDate: string; amount: number }[];
+  today: string;
+  service: string;
+  planName: string;
+}): Confidence {
+  const txs: CandidateTx[] = input.charges.map((charge, index) => ({
+    id: `stored-${index}`,
+    description: input.planName,
+    amount: charge.amount,
+    chargeDate: charge.chargeDate,
+  }));
+  const summary = summarize(txs, input.today);
+  const info = serviceInfo(input.service);
+  return confidenceFor({
+    summary,
+    catalog: Boolean(info && input.service !== "apple" && input.service !== "unknown"),
+    catalogName: info?.serviceName ?? input.planName,
+  });
 }
