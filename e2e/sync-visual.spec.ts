@@ -62,7 +62,10 @@ test("o botão e o aviso de sucesso no celular e no desktop", async ({ page }, t
     synced = false;
     before.syncedAt = new Date(Date.now() - 20_000).toISOString();
     const size = viewport.width === 390 ? "mobile" : "desktop";
-    await page.emulateMedia({ colorScheme: scheme });
+    await page.addInitScript((theme) => {
+      if (theme === "light") localStorage.setItem("ciclo-theme", "light");
+      else localStorage.removeItem("ciclo-theme");
+    }, scheme);
     await page.setViewportSize(viewport);
     await page.goto("/");
     await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });

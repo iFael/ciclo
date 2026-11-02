@@ -206,7 +206,11 @@ type Summary = {
   picked: CandidateTx[];
 };
 
-function summarize(txs: CandidateTx[], today: string): Summary {
+/**
+ * `allowSingle`: a known catalog service charged once, recently, still counts.
+ * Unknown merchants need a real repetition.
+ */
+function summarize(txs: CandidateTx[], today: string, allowSingle = false): Summary {
   const amounts = txs.map((tx) => tx.amount);
   const stable = stableAmounts(amounts);
   const medianAmount = amounts.length ? median(amounts) : 0;
@@ -275,11 +279,32 @@ function summarize(txs: CandidateTx[], today: string): Summary {
     };
   }
 
+  if (allowSingle) {
+    const latest = [...txs].sort((a, b) => a.chargeDate.localeCompare(b.chargeDate)).at(-1);
+    if (latest && recentEnough(latest.chargeDate, today, "monthly")) {
+      return {
+        passed: true,
+        cadence: "monthly",
+        occurrences: 1,
+        streakPassed: false,
+        recent: true,
+        stable,
+        dayMatch: false,
+        last: latest.chargeDate,
+        medianDay: null,
+        medianAmount: latest.amount,
+        gapUsed: false,
+        picked: [latest],
+      };
+    }
+  }
+
   return empty;
 }
 
 function streakDetail(summary: Summary): string {
   if (summary.occurrences === 0) return "sem repetição";
+  if (summary.occurrences === 1 && summary.cadence === "monthly") return "1 cobrança recente";
   if (summary.cadence === "annual") {
     return summary.occurrences === 1 ? "1 cobrança anual" : `${summary.occurrences} cobranças anuais`;
   }
@@ -296,9 +321,15 @@ export function confidenceFor(input: {
   return buildConfidence({
     streakPassed: input.summary.streakPassed,
     occurrences: input.summary.occurrences,
+    cadence: input.summary.cadence,
     streakDetail: streakDetail(input.summary),
     dayPassed: input.summary.dayMatch,
-    dayDetail: input.summary.dayMatch && input.summary.medianDay !== null ? `sempre perto do dia ${input.summary.medianDay}` : "dias variados",
+    dayDetail:
+      input.summary.dayMatch && input.summary.medianDay !== null
+        ? `sempre perto do dia ${input.summary.medianDay}`
+        : input.summary.occurrences === 1
+          ? "só uma cobrança"
+          : "dias variados",
     amountPassed: input.summary.stable && input.summary.picked.length > 0,
     amountDetail: input.summary.stable && input.summary.medianAmount > 0 ? formatBrl(round2(input.summary.medianAmount)) : "valores variados",
     catalogPassed: input.catalog,
@@ -325,7 +356,7 @@ function planTitle(service: string | null, descriptor: string, amount: number): 
 }
 
 function detectionFromCluster(txs: CandidateTx[], service: string | null, today: string): Detection | null {
-  const summary = summarize(txs, today);
+  const summary = summarize(txs, today, Boolean(service && service !== "apple"));
   if (!summary.passed || !summary.last) return null;
   const descriptor = normalizeDescriptor(txs[0]?.description ?? "");
   const info = service ? serviceInfo(service) : undefined;
@@ -417,7 +448,8 @@ export function scoreStoredCharges(input: {
     amount: charge.amount,
     chargeDate: charge.chargeDate,
   }));
-  const summary = summarize(txs, input.today);
+  const known = input.service !== "apple" && input.service !== "unknown" && Boolean(serviceInfo(input.service));
+  const summary = summarize(txs, input.today, known);
   const info = serviceInfo(input.service);
   return confidenceFor({
     summary,

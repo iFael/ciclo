@@ -12,7 +12,10 @@ const checks = (passed: boolean[], details: string[]) =>
     ["amount", "Valor estável"],
     ["catalog", "Serviço conhecido"],
     ["recent", "Cobrança recente"],
-  ].map(([id, label], index) => ({ id, label, detail: details[index], passed: passed[index] }));
+    ["learned", "Suas escolhas"],
+  ]
+    .slice(0, details.length)
+    .map(([id, label], index) => ({ id, label, detail: details[index], passed: passed[index] }));
 
 function suggestion(partial: {
   id: string;
@@ -57,6 +60,23 @@ const payload = {
       logoFallback: false,
     },
   ],
+  inactiveCards: [
+    {
+      id: "spotify",
+      service: "spotify",
+      planName: "Spotify Premium",
+      priceLabel: "R$ 21,90/mês",
+      nextChargeLabel: "Última cobrança: 05/08 · Sem cobrança recente",
+      manageUrl: null,
+      manageLabel: "",
+      removeConfirm: "Isso não cancela sua assinatura no Spotify.",
+      autoConfirmed: false,
+      notice: null,
+      logoUrl: "/logos/spotify.svg",
+      logoFallback: false,
+      inactiveLabel: "Sem cobrança desde 05/08",
+    },
+  ],
   suggestions: [
     suggestion({
       id: "netflix",
@@ -88,8 +108,8 @@ const payload = {
       label: "Média",
       logoUrl: null,
       logoFallback: true,
-      passed: [true, false, true, false, true],
-      details: ["3 meses seguidos", "dias variados", "R$ 80", "fora do catálogo", "última em 09/10"],
+      passed: [true, false, true, false, true, true],
+      details: ["2 meses seguidos", "dias variados", "R$ 80", "fora do catálogo", "última em 09/10", "parecido com o que você confirmou"],
     }),
   ],
   banners: [{ id: "suggestions", tone: "neutral", text: "Encontramos 3 possíveis assinaturas", actions: [] }],
@@ -118,7 +138,10 @@ test("confirmed cards show the last charge and suggestions show a confidence bar
 
   for (const [viewport, scheme] of shots) {
     const size = viewport.width === 390 ? "mobile" : "desktop";
-    await page.emulateMedia({ colorScheme: scheme });
+    await page.addInitScript((theme) => {
+      if (theme === "light") localStorage.setItem("ciclo-theme", "light");
+      else localStorage.removeItem("ciclo-theme");
+    }, scheme);
     await page.setViewportSize(viewport);
     await page.goto("/?aba=assinaturas");
     await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
@@ -147,6 +170,7 @@ test("confirmed cards show the last charge and suggestions show a confidence bar
     await expect(cards.nth(0)).toContainText("5 meses seguidos");
     await expect(cards.nth(1)).toContainText("Suno");
     await expect(cards.nth(2)).toContainText("Academia Fit");
+    await expect(cards.nth(2)).toContainText("parecido com o que você confirmou");
     await expect(cards.first().locator("img.logo")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`${size}-${scheme}-sugestoes.png`), fullPage: true });
   }
