@@ -61,7 +61,7 @@ Cadastre:
 
 `https://ciclo-peach.vercel.app/api/webhooks/pluggy?token=SEU_PLUGGY_WEBHOOK_TOKEN`
 
-O mesmo token pode ir no header `x-webhook-token`. O corpo é só um aviso: a rota relê o item e as transações na API. Eventos repetidos ou fora de ordem não duplicam a conexão. `item/created` marca a conexão anterior da mesma instituição como `replaced`. `USER_AUTHORIZATION_EXPIRED` marca `expired`.
+O mesmo token pode ir no header `x-webhook-token`. O corpo é só um aviso: a rota relê o item e as transações na API. O corpo e cada resposta da Pluggy passam pelos schemas Zod de `lib/pluggy/schemas.ts`: um aviso com formato inválido é ignorado com 200, uma transação inválida é descartada (o log só conta quantas) e um item ou página fora do formato falha com `pluggy_invalid_*`. Eventos repetidos ou fora de ordem não duplicam a conexão. `item/created` marca a conexão anterior da mesma instituição como `replaced`. `USER_AUTHORIZATION_EXPIRED` marca `expired`.
 
 ## GitHub
 

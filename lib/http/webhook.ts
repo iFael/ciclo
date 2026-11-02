@@ -1,6 +1,7 @@
 import { resolveDeps } from "@/lib/deps";
 import { deliverReminders } from "@/lib/deliver";
 import { syncItem } from "@/lib/sync";
+import { pluggyWebhookSchema, type PluggyWebhook } from "@/lib/pluggy/schemas";
 import { ConfigError, safeEqual, safeLog } from "@/lib/security";
 
 export function webhookAuthorized(request: Request, secret: string): boolean {
@@ -19,9 +20,15 @@ export async function handleWebhook(request: Request): Promise<Response> {
   const secret = process.env.PLUGGY_WEBHOOK_TOKEN;
   if (!secret) return Response.json({ error: "Configuração incompleta: PLUGGY_WEBHOOK_TOKEN" }, { status: 503 });
   if (!webhookAuthorized(request, secret)) return Response.json({ error: "unauthorized" }, { status: 401 });
-  let body: { event?: string; itemId?: string; transactionIds?: string[] } = {};
+  let body: PluggyWebhook;
   try {
-    body = (await request.json()) as typeof body;
+    const parsed = pluggyWebhookSchema.safeParse(await request.json());
+    // A notice we cannot read is acknowledged and ignored, like before. The cron re-reads anyway.
+    if (!parsed.success) {
+      console.info(JSON.stringify(safeLog({ count: 0, status: "ignored", errorCode: "webhook_invalid_body" })));
+      return Response.json({ ok: true });
+    }
+    body = parsed.data;
   } catch {
     return Response.json({ ok: true });
   }
