@@ -66,6 +66,14 @@ test("Conexões mostra o banco e os cartões reais e permite conectar outro", as
     await page.screenshot({ path: testInfo.outputPath(`${viewport.width === 390 ? "mobile" : "desktop"}-${scheme}-conexoes.png`) });
   }
 
+  await page.getByTestId("connect-bank").click();
+  const add = page.getByTestId("add-bank-dialog");
+  await expect(add.getByTestId("add-bank-meupluggy")).toHaveAttribute("href", "https://meu.pluggy.ai/connections");
+  await expect(add.getByTestId("add-bank-authorize")).toBeVisible();
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: testInfo.outputPath("conectar-banco.png") });
+  await add.getByRole("button", { name: "Voltar" }).click();
+
   await page.getByRole("button", { name: "Remover Nubank" }).click();
   await page.getByRole("button", { name: "Remover", exact: true }).click();
   await expect(page.getByTestId("connections-dialog").getByTestId("connection-row")).toHaveCount(1);

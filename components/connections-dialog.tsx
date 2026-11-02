@@ -40,13 +40,17 @@ export function ConnectionsDialog<M>({ open, onOpenChange, connections, onScreen
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<ScreenConnection | null>(null);
+  const [adding, setAdding] = useState(false);
 
   /** Opens Pluggy Connect. Without `connection` it adds a bank; with it, it renews that one. */
   async function connect(connection?: ScreenConnection) {
     setError(null);
     setBusy(connection?.id ?? "new");
     try {
-      const { accessToken, updateItem } = await post<{ accessToken: string; updateItem?: string }>({ action: "token", id: connection?.id });
+      const { accessToken, updateItem, selectedConnectorId } = await post<{ accessToken: string; updateItem?: string; selectedConnectorId?: number }>({
+        action: "token",
+        id: connection?.id,
+      });
       const { PluggyConnect } = await import("pluggy-connect-sdk");
       // Pluggy Connect sits above our dialog, so ours steps aside while it is open.
       onOpenChange(false);
@@ -56,6 +60,7 @@ export function ConnectionsDialog<M>({ open, onOpenChange, connections, onScreen
         theme: currentTheme(),
         countries: ["BR"],
         ...(updateItem ? { updateItem } : {}),
+        ...(selectedConnectorId ? { selectedConnectorId } : {}),
         // Pluggy tells the server through the webhook. Read the screen again until it shows up.
         onSuccess: async () => {
           onNotice(connection ? "Conexão renovada" : "Banco conectado", "Lendo os cartões. Isso leva alguns segundos.");
@@ -96,7 +101,7 @@ export function ConnectionsDialog<M>({ open, onOpenChange, connections, onScreen
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open && !adding} onOpenChange={onOpenChange}>
         <DialogContent data-testid="connections-dialog">
           <DialogTitle>Conexões</DialogTitle>
           <DialogDescription>Os bancos e cartões que o Ciclo lê. Ele só lê as compras, nunca mexe no dinheiro.</DialogDescription>
@@ -164,11 +169,6 @@ export function ConnectionsDialog<M>({ open, onOpenChange, connections, onScreen
               </div>
             ))}
           </div>
-          {connections.some((connection) => connection.via) && (
-            <p className="text-xs text-muted-foreground">
-              Pelo MeuPluggy, cada banco é conectado lá e depois liberado aqui em Conectar banco.
-            </p>
-          )}
           {error && (
             <p role="alert" className="text-sm text-destructive">
               {error}
@@ -178,10 +178,52 @@ export function ConnectionsDialog<M>({ open, onOpenChange, connections, onScreen
             <DialogClose asChild>
               <Button variant="outline">Fechar</Button>
             </DialogClose>
-            <Button data-testid="connect-bank" disabled={busy !== null} onClick={() => void connect()}>
-              {busy === "new" ? <RefreshCw className="animate-spin" /> : <Plus />}
+            <Button data-testid="connect-bank" disabled={busy !== null} onClick={() => setAdding(true)}>
+              <Plus />
               Conectar banco
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={open && adding} onOpenChange={setAdding}>
+        <DialogContent data-testid="add-bank-dialog">
+          <DialogTitle>Conectar banco</DialogTitle>
+          <DialogDescription>
+            Os bancos são conectados no MeuPluggy, que é quem fala com as instituições. Depois você libera o banco para o Ciclo.
+          </DialogDescription>
+          <ol className="grid gap-3 text-sm">
+            <li className="grid gap-2 rounded-xl border bg-background/40 px-4 py-3">
+              <p className="font-semibold">1. Escolha o banco no MeuPluggy</p>
+              <p className="text-xs text-muted-foreground">Abre em outra aba. Lá você usa Nova conexão e escolhe a instituição.</p>
+              <Button asChild variant="outline" size="sm" className="justify-self-start">
+                <a href="https://meu.pluggy.ai/connections" target="_blank" rel="noopener noreferrer" data-testid="add-bank-meupluggy">
+                  Abrir Nova conexão
+                  <ExternalLink />
+                </a>
+              </Button>
+            </li>
+            <li className="grid gap-2 rounded-xl border bg-background/40 px-4 py-3">
+              <p className="font-semibold">2. Libere para o Ciclo</p>
+              <p className="text-xs text-muted-foreground">Quando o banco aparecer no MeuPluggy, volte aqui e autorize a leitura.</p>
+              <Button
+                size="sm"
+                className="justify-self-start"
+                disabled={busy !== null}
+                data-testid="add-bank-authorize"
+                onClick={() => {
+                  setAdding(false);
+                  void connect();
+                }}
+              >
+                Liberar no Ciclo
+              </Button>
+            </li>
+          </ol>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Voltar</Button>
+            </DialogClose>
           </DialogFooter>
         </DialogContent>
       </Dialog>
