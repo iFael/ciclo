@@ -95,7 +95,7 @@ async function openTab(page: Page, tab: "assinaturas" | "sugestoes") {
   await page.getByTestId(tab === "assinaturas" ? "tab-assinaturas" : "tab-sugestoes").click();
 }
 
-test("empilha no celular e abre em colunas no tablet e no desktop", async ({ page }) => {
+test("empilha no celular, abre em colunas no tablet e mostra lista e sugestões lado a lado no desktop", async ({ page }) => {
   const cards = [card({}), card({ id: "sub-2", service: "claude", planName: "Claude Pro" })];
   await mockPlans(page, {
     ...model(cards),
@@ -141,21 +141,28 @@ test("empilha no celular e abre em colunas no tablet e no desktop", async ({ pag
   const desktopScreen = await page.getByTestId("screen").boundingBox();
   expect(desktopScreen!.width).toBeGreaterThan(1400);
   expect(desktopScreen!.x).toBeLessThan(8);
-  const title = await page.getByTestId("page-title").boundingBox();
-  const total = await page.getByTestId("monthly-total").boundingBox();
-  expect(total!.x).toBeGreaterThan(title!.x + title!.width - 8);
-  const desktop = await page.getByTestId("plan-card").all();
-  const left = await desktop[0].boundingBox();
-  const right = await desktop[1].boundingBox();
-  expect(Math.abs(left!.y - right!.y)).toBeLessThan(12);
-  expect(right!.x).toBeGreaterThan(left!.x + 280);
   expect(await page.locator("header.top").evaluate((element) => getComputedStyle(element).position)).toBe("relative");
-  await openTab(page, "sugestoes");
+  // Desktop: no tabs, the summary row on top, the plan list on the left and suggestions in a column on the right.
+  await expect(page.getByRole("tablist")).toHaveCount(0);
+  await expect(page.getByTestId("footer-sync")).toBeVisible();
+  const total = await page.getByTestId("monthly-total").boundingBox();
+  const desktop = await page.getByTestId("plan-card").all();
+  const first = await desktop[0].boundingBox();
+  const second = await desktop[1].boundingBox();
+  expect(first!.y).toBeGreaterThan(total!.y + total!.height);
+  expect(second!.y).toBeGreaterThan(first!.y + 40);
+  expect(Math.abs(first!.x - second!.x)).toBeLessThan(4);
   const suggestions = await page.getByTestId("suggestion").all();
-  const sugLeft = await suggestions[0].boundingBox();
-  const sugRight = await suggestions[1].boundingBox();
-  expect(Math.abs(sugLeft!.y - sugRight!.y)).toBeLessThan(12);
-  expect(sugRight!.x).toBeGreaterThan(sugLeft!.x + 280);
+  expect(suggestions).toHaveLength(2);
+  const sugTop = await suggestions[0].boundingBox();
+  const sugNext = await suggestions[1].boundingBox();
+  expect(sugTop!.x).toBeGreaterThan(first!.x + first!.width);
+  expect(sugNext!.y).toBeGreaterThan(sugTop!.y + 40);
+  await expect(page.getByTestId("suggestion-peek")).toHaveCount(0);
+  await page.getByTestId("remove").first().click();
+  await expect(page.getByTestId("remove-dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("remove-dialog")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 });
 

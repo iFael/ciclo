@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { Check, ExternalLink, LogOut, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { Brand, CycleMark } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
@@ -189,6 +189,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   const [syncing, setSyncing] = useState(false);
   const [syncToast, setSyncToast] = useState<{ title: string; detail?: string } | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const desktop = useDesktop();
   const tabRefs = useRef<Partial<Record<PlansTab, HTMLButtonElement | null>>>({});
   const syncedAtRef = useRef<string | null>(null);
 
@@ -330,367 +331,24 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   }
 
   const manualSync = () => startSync("manual", undefined, syncedAtRef, setModel, setSyncing, setSyncToast, setSyncError);
+  const showAssinaturas = Boolean(ready && model && (desktop || tab === "assinaturas"));
+  const showSugestoes = Boolean(ready && model && (desktop || tab === "sugestoes"));
 
-  return (
-    <main data-testid="screen" id="planos" className="min-h-dvh w-full bg-background text-foreground">
-      <a
-        className="sr-only z-[60] rounded-md bg-primary px-3 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-[calc(12px+env(safe-area-inset-top))]"
-        href="#conteudo"
-      >
-        Ir para os planos
-      </a>
+  const syncPill = model && (
+    <span className={cn("inline-flex h-9 min-w-0 items-center gap-2 rounded-full border bg-card pl-3 text-muted-foreground", desktop ? "pr-1 text-[13.5px]" : "pr-3.5 text-[13px]")}>
+      <span
+        aria-hidden="true"
+        className={cn("size-[7px] shrink-0 rounded-full bg-success shadow-[0_0_0_3px_color-mix(in_oklab,var(--success)_18%,transparent)]", syncing && "animate-pulse")}
+      />
+      <span data-testid="footer-sync" aria-live="polite" className="truncate">
+        {syncing ? "Sincronizando…" : model.footer}
+      </span>
+      {desktop && <SyncButton syncing={syncing} onClick={manualSync} iconOnly />}
+    </span>
+  );
 
-      <header className="top sticky top-0 z-40 border-b bg-background/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:relative md:border-b-0 md:bg-transparent md:backdrop-blur-none">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 md:h-20 lg:px-8">
-          <Brand />
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="size-10 bg-card" data-testid="menu" aria-label="Abrir menu">
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem data-testid="menu-sync" disabled={syncing} onSelect={manualSync}>
-                <RefreshCw />
-                Sincronizar agora
-              </DropdownMenuItem>
-              <DropdownMenuItem data-testid="menu-connections" onSelect={() => setConnections(true)}>
-                <Plug />
-                Conexões
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                data-testid="menu-logout"
-                onSelect={async () => {
-                  await fetch("/api/auth/logout", { method: "POST" });
-                  window.location.replace("/login");
-                }}
-              >
-                <LogOut />
-                Sair
-              </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" data-testid="menu-delete" onSelect={() => setErase(true)}>
-                <Trash2 />
-                Apagar meus dados
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
-
-      <div id="conteudo" className="mx-auto max-w-6xl px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8">
-        <section className="grid gap-5 pt-5 md:pt-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,540px)] lg:gap-10">
-          <div className="flex min-w-0 flex-col lg:justify-between lg:py-2">
-            <div>
-            <h1 data-testid="page-title" className="text-3xl font-bold tracking-[-0.035em] md:text-4xl">
-              Meus planos
-            </h1>
-            <p data-testid="page-subtitle" className="mt-2 max-w-md text-[15px] text-muted-foreground">
-              Suas assinaturas, encontradas automaticamente no seu cartão.
-            </p>
-            </div>
-            {ready && model && (
-              <div className="mt-5 flex items-center gap-2">
-                <span className="inline-flex h-9 min-w-0 items-center gap-2 rounded-full border bg-card pl-3 pr-3.5 text-sm text-muted-foreground">
-                  <span
-                    aria-hidden="true"
-                    className={cn("size-2 rounded-full bg-success shadow-[0_0_0_3px_color-mix(in_oklab,var(--success)_20%,transparent)]", syncing && "animate-pulse")}
-                  />
-                  <span data-testid="footer-sync" aria-live="polite" className="truncate">
-                    {syncing ? "Sincronizando…" : model.footer}
-                  </span>
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 shrink-0 rounded-full bg-card max-sm:w-9 max-sm:px-0"
-                  data-testid="sync-now"
-                  aria-label="Sincronizar agora"
-                  aria-busy={syncing}
-                  disabled={syncing}
-                  onClick={manualSync}
-                >
-                  <RefreshCw className={cn(syncing && "animate-spin")} />
-                  <span aria-hidden="true" className="hidden sm:inline">Sincronizar</span>
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {ready && model && tab === "assinaturas" && (
-            <Summary eyebrow="Gasto mensal">
-              <p data-testid="monthly-total" className="mt-3 text-[2.6rem] font-bold leading-none tracking-[-0.045em] md:text-5xl">
-                <PerMonth label={model.monthlyLabel} />
-              </p>
-              <p data-testid="annual-total" className="mt-2.5 text-sm text-hero-muted">
-                {model.annualLabel}
-              </p>
-              <SummaryStats
-                items={[
-                  { label: "Ativas", value: plural(model.cards.length, "assinatura", "assinaturas") },
-                  { label: "Para revisar", value: plural(model.suggestions.length, "sugestão", "sugestões") },
-                ]}
-              />
-            </Summary>
-          )}
-          {ready && model && tab === "sugestoes" && (
-            <Summary eyebrow="Para revisar">
-              <p className="mt-3 text-[2.6rem] font-bold leading-none tracking-[-0.045em] md:text-5xl">
-                {model.suggestions.length}
-                <span className="ml-2 text-lg font-medium tracking-normal text-hero-muted">
-                  {model.suggestions.length === 1 ? "possível plano" : "possíveis planos"}
-                </span>
-              </p>
-              <p className="mt-2.5 text-sm text-hero-muted">Confirme o que é assinatura para entrar no total do mês.</p>
-              <SummaryStats
-                items={[
-                  { label: "Ativas", value: plural(model.cards.length, "assinatura", "assinaturas") },
-                  { label: "No total", value: model.cards.length > 0 ? model.monthlyLabel : "—" },
-                ]}
-              />
-            </Summary>
-          )}
-        </section>
-
-        <div className="mt-6 space-y-3 empty:hidden">
-          {!model && !error && (
-            <p data-testid="loading" className="text-sm text-muted-foreground">
-              Carregando planos…
-            </p>
-          )}
-          {error && (
-            <p data-testid="load-error" role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
-              Não foi possível carregar seus planos.
-            </p>
-          )}
-          {ready && connectionBanner && (
-            <BannerView
-              banner={connectionBanner}
-              testId="connection-banner"
-              extra={Math.max(connectionBanners.length - 1, 0)}
-              moreTestId="connection-banner-more"
-              onMore={() => setConnectionBannerIndex((index) => (index + 1) % connectionBanners.length)}
-              onAction={(action, id) => act(action, id)}
-            />
-          )}
-          {ready && model?.firstRead && (
-            <p data-testid="first-read" className="text-sm text-muted-foreground">
-              Primeira leitura em até 24 horas.
-            </p>
-          )}
-        </div>
-
-        {ready && model && tab && (
-          <>
-            <div
-              role="tablist"
-              aria-label="Meus planos"
-              data-testid="plan-tabs"
-              onKeyDown={onTabsKey}
-              className="mt-6 grid w-full grid-cols-2 rounded-xl border bg-card p-1 sm:inline-grid sm:w-auto"
-            >
-              {TABS.map((item) => {
-                const selected = tab === item;
-                const count = item === "assinaturas" ? model.cards.length : model.suggestions.length;
-                const parts = tabLabelParts(item, count);
-                return (
-                  <button
-                    key={item}
-                    type="button"
-                    role="tab"
-                    id={`tab-${item}`}
-                    data-testid={`tab-${item}`}
-                    aria-selected={selected}
-                    aria-controls={`panel-${item}`}
-                    tabIndex={selected ? 0 : -1}
-                    ref={(node) => {
-                      tabRefs.current[item] = node;
-                    }}
-                    onClick={() => selectTab(item)}
-                    className={cn(
-                      "flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground sm:min-w-40",
-                      selected && "bg-secondary text-foreground shadow-[inset_0_0_0_1px_var(--border)]",
-                    )}
-                  >
-                    <span>{parts.name}</span>
-                    <span className="font-medium tabular-nums text-muted-foreground"> {parts.count}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {tab === "assinaturas" ? (
-              <div role="tabpanel" id="panel-assinaturas" aria-labelledby="tab-assinaturas" data-testid="panel-assinaturas" className="mt-5 space-y-4">
-                {planBanner && (
-                  <BannerView
-                    banner={planBanner}
-                    testId="banner"
-                    extra={Math.max(planBanners.length - 1, 0)}
-                    moreTestId="banner-more"
-                    onMore={() => setPlanBannerIndex((index) => (index + 1) % planBanners.length)}
-                    onAction={(action, id) => act(action, id)}
-                  />
-                )}
-                {model.cards.length === 0 ? (
-                  <EmptyState
-                    testId="empty-assinaturas"
-                    legacy={model.empty}
-                    title="Nenhuma assinatura confirmada"
-                    hint={
-                      model.empty
-                        ? "Assim que uma cobrança recorrente aparecer no cartão, confirme para ela entrar no total."
-                        : model.suggestions.length > 0
-                          ? "Confirme uma sugestão para acompanhar o plano, o total e a última cobrança."
-                          : "Os planos confirmados aparecem aqui, com o total do mês."
-                    }
-                    action={
-                      model.suggestions.length > 0 ? (
-                        <Button data-testid="empty-goto-suggestions" onClick={() => selectTab("sugestoes")}>
-                          Ver sugestões
-                        </Button>
-                      ) : null
-                    }
-                  />
-                ) : (
-                  <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {model.cards.map((card) => (
-                      <Card asArticle key={card.id} data-testid="plan-card" className="flex min-w-0 flex-col p-5">
-                        <div className="flex items-start gap-3.5">
-                          <ServiceMark
-                            src={card.logoUrl === undefined ? `/logos/${card.service}.svg` : card.logoUrl}
-                            name={card.planName}
-                            fallback={card.logoFallback === true}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <h2 data-testid="plan-name" className="truncate text-base font-semibold leading-snug">
-                              {card.planName}
-                            </h2>
-                            <p data-testid="next-charge" className="mt-0.5 text-[13px] leading-snug text-muted-foreground">
-                              {card.nextChargeLabel}
-                            </p>
-                          </div>
-                        </div>
-                        <p data-testid="plan-price" className="mt-4 text-2xl font-bold tracking-[-0.03em]">
-                          <PerMonth label={card.priceLabel} />
-                        </p>
-                        {card.logoFallback && (
-                          <form
-                            className="mt-3"
-                            onSubmit={(event) => {
-                              event.preventDefault();
-                              const domain = String(new FormData(event.currentTarget).get("domain") ?? "");
-                              void act("set-domain", card.id, undefined, domain);
-                            }}
-                          >
-                            <Input name="domain" className="h-10 text-sm" aria-label="Site do serviço" placeholder="Site do serviço" />
-                          </form>
-                        )}
-                        {card.notice && <p className="mt-3 text-[13px] text-muted-foreground">{card.notice}</p>}
-                        <div className="mt-auto flex gap-2 pt-5">
-                          {card.manageUrl && (
-                            <Button asChild className="flex-1">
-                              <a data-testid="manage" href={card.manageUrl} target="_blank" rel="noopener noreferrer" aria-label={card.manageLabel}>
-                                Gerenciar
-                                <ExternalLink />
-                              </a>
-                            </Button>
-                          )}
-                          <Button variant="outline" className="flex-1" data-testid="remove" onClick={() => setPending(card)}>
-                            Remover
-                          </Button>
-                          {card.autoConfirmed && (
-                            <Button variant="ghost" data-testid="undo-auto" onClick={() => act("undo", card.id)}>
-                              Desfazer
-                            </Button>
-                          )}
-                        </div>
-                      </Card>
-                    ))}
-                  </section>
-                )}
-              </div>
-            ) : (
-              <div role="tabpanel" id="panel-sugestoes" aria-labelledby="tab-sugestoes" data-testid="panel-sugestoes" className="mt-5 space-y-4">
-                {model.suggestions.length === 0 ? (
-                  <EmptyState
-                    testId="empty-sugestoes"
-                    legacy={model.empty}
-                    title={model.firstRead ? "Nenhuma sugestão ainda" : "Nenhuma sugestão no momento"}
-                    hint={
-                      model.empty
-                        ? "Assim que uma cobrança recorrente aparecer no cartão, confirme para ela entrar no total."
-                        : model.firstRead
-                          ? "As possíveis assinaturas entram aqui quando a leitura do cartão terminar."
-                          : "Novas cobranças recorrentes do cartão aparecem aqui."
-                    }
-                    action={
-                      model.cards.length > 0 ? (
-                        <Button data-testid="empty-goto-assinaturas" onClick={() => selectTab("assinaturas")}>
-                          Ver assinaturas
-                        </Button>
-                      ) : null
-                    }
-                  />
-                ) : (
-                  <>
-                    {suggestionBanner && (
-                      <p data-testid="suggestion-heading" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        {suggestionBanner.text}
-                      </p>
-                    )}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {model.suggestions.map((suggestion) => (
-                        <Card asArticle key={suggestion.id} data-testid="suggestion" className="flex min-w-0 flex-col p-5">
-                          <div className="flex items-start gap-3.5">
-                            <ServiceMark src={suggestion.logoUrl} name={suggestion.planName} fallback={suggestion.logoFallback === true || !suggestion.logoUrl} />
-                            <div className="min-w-0 flex-1">
-                              <h2 className="truncate text-base font-semibold leading-snug">{suggestion.planName}</h2>
-                              {!suggestion.confidence && suggestion.label && <p className="mt-0.5 text-[13px] text-muted-foreground">{suggestion.label}</p>}
-                              {!suggestion.confidence && suggestion.checked && <p className="mt-0.5 text-[13px] text-muted-foreground">Sugestão marcada</p>}
-                            </div>
-                          </div>
-                          <p className="mt-4 text-2xl font-bold tracking-[-0.03em]">
-                            <PerMonth label={suggestion.priceLabel} />
-                          </p>
-                          {suggestion.confidence && <ConfidenceBar confidence={suggestion.confidence} />}
-                          {suggestion.apple && (
-                            <label className="mt-4 grid gap-1.5 text-sm font-medium">
-                              Serviço
-                              <select
-                                data-testid="apple-picker"
-                                aria-label="Escolher o serviço desta assinatura da Apple"
-                                className="h-11 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-sm text-foreground"
-                                value={appleService[suggestion.id] ?? ""}
-                                onChange={(event) => setAppleService((current) => ({ ...current, [suggestion.id]: event.target.value }))}
-                              >
-                                <option value="">Escolher serviço</option>
-                                {model.appleChoices.map((choice) => (
-                                  <option key={choice.id} value={choice.id}>
-                                    {choice.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          )}
-                          <div className="mt-auto flex gap-2 pt-5">
-                            <Button className="flex-1" data-testid="suggestion-yes" onClick={() => confirmSuggestion(suggestion)}>
-                              É assinatura
-                            </Button>
-                            <Button variant="outline" className="flex-1" data-testid="suggestion-no" onClick={() => act("ignore", suggestion.id)}>
-                              Não é
-                            </Button>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
+  const removeDialogs = (
+    <>
       <Dialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
         <DialogContent data-testid="remove-dialog">
           <DialogTitle>Remover do Ciclo</DialogTitle>
@@ -768,6 +426,444 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </>
+  );
+
+  return (
+    <main data-testid="screen" id="planos" className="min-h-dvh w-full bg-background text-foreground">
+      <a
+        className="sr-only z-[60] rounded-md bg-primary px-3 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-[calc(12px+env(safe-area-inset-top))]"
+        href="#conteudo"
+      >
+        Ir para os planos
+      </a>
+
+      <header className="top sticky top-0 z-40 bg-background/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl lg:relative lg:bg-transparent lg:backdrop-blur-none">
+        <div className="mx-auto flex h-16 max-w-[1120px] items-center justify-between gap-3 px-4 sm:px-6 lg:h-auto lg:border-b lg:px-0 lg:pb-7 lg:pt-7">
+          <Brand />
+          <div className="flex min-w-0 items-center gap-2.5">
+            {desktop && ready && syncPill}
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="size-9 shrink-0 rounded-[10px] bg-card" data-testid="menu" aria-label="Abrir menu">
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem data-testid="menu-sync" disabled={syncing} onSelect={manualSync}>
+                  <RefreshCw />
+                  Sincronizar agora
+                </DropdownMenuItem>
+                <DropdownMenuItem data-testid="menu-connections" onSelect={() => setConnections(true)}>
+                  <Plug />
+                  Conexões
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  data-testid="menu-logout"
+                  onSelect={async () => {
+                    await fetch("/api/auth/logout", { method: "POST" });
+                    window.location.replace("/login");
+                  }}
+                >
+                  <LogOut />
+                  Sair
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" data-testid="menu-delete" onSelect={() => setErase(true)}>
+                  <Trash2 />
+                  Apagar meus dados
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </header>
+
+      <div id="conteudo" className="mx-auto max-w-[1120px] px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-0 lg:pb-14">
+        <h1 data-testid="page-title" className="sr-only">
+          Meus planos
+        </h1>
+        <p data-testid="page-subtitle" className="sr-only">
+          Suas assinaturas, encontradas automaticamente no seu cartão.
+        </p>
+
+        {!model && !error && (
+          <p data-testid="loading" className="mt-6 text-sm text-muted-foreground">
+            Carregando planos…
+          </p>
+        )}
+        {error && (
+          <p data-testid="load-error" role="alert" className="mt-6 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
+            Não foi possível carregar seus planos.
+          </p>
+        )}
+
+        {ready && model && desktop && (
+          <section aria-label="Resumo" className="mt-8 grid grid-cols-[1.35fr_1fr_1fr] gap-4">
+            <div className="relative overflow-hidden rounded-[18px] border border-hero-border bg-hero px-6 py-[22px] text-hero-foreground">
+              <HeroGlow />
+              <Eyebrow className="text-hero-muted">Gasto mensal</Eyebrow>
+              <p data-testid="monthly-total" className="mt-3 text-[52px] font-bold leading-none tracking-[-0.04em]">
+                <PerMonth label={model.monthlyLabel} />
+              </p>
+              <p className="mt-2.5 text-sm text-hero-muted">
+                <span data-testid="annual-total">{model.annualLabel}</span> · {plural(model.cards.length, "assinatura ativa", "assinaturas ativas")}
+              </p>
+            </div>
+            <StatCard label="Ativas" value={plural(model.cards.length, "assinatura", "assinaturas")} hint="Confirmadas no seu cartão" />
+            <StatCard label="Para revisar" value={plural(model.suggestions.length, "sugestão", "sugestões")} hint="Encontradas no seu cartão" />
+          </section>
+        )}
+
+        {ready && model && !desktop && tab === "assinaturas" && (
+          <section aria-label="Resumo" className="relative mt-4 overflow-hidden rounded-[20px] border border-hero-border bg-hero p-5 text-hero-foreground">
+            <HeroGlow />
+            <Eyebrow className="text-hero-muted">Gasto mensal</Eyebrow>
+            <p data-testid="monthly-total" className="mt-2.5 text-[40px] font-bold leading-none tracking-[-0.04em]">
+              <PerMonth label={model.monthlyLabel} />
+            </p>
+            <p data-testid="annual-total" className="mt-2 text-[13.5px] text-hero-muted">
+              {model.annualLabel}
+            </p>
+            <MiniStats
+              items={[
+                { label: "Ativas", value: plural(model.cards.length, "assinatura", "assinaturas") },
+                { label: "Para revisar", value: plural(model.suggestions.length, "sugestão", "sugestões") },
+              ]}
+            />
+          </section>
+        )}
+        {ready && model && !desktop && tab === "sugestoes" && (
+          <section aria-label="Resumo" className="relative mt-4 overflow-hidden rounded-[20px] border border-hero-border bg-hero p-5 text-hero-foreground">
+            <HeroGlow />
+            <Eyebrow className="text-hero-muted">Para revisar</Eyebrow>
+            <p className="mt-2.5 text-[40px] font-bold leading-none tracking-[-0.04em]">
+              {model.suggestions.length}
+              <span className="ml-2 text-base font-medium tracking-normal text-hero-muted">
+                {model.suggestions.length === 1 ? "possível plano" : "possíveis planos"}
+              </span>
+            </p>
+            <p className="mt-2 text-[13.5px] text-hero-muted">Confirme o que é assinatura para entrar no total do mês.</p>
+            <MiniStats
+              items={[
+                { label: "Ativas", value: plural(model.cards.length, "assinatura", "assinaturas") },
+                { label: "No total", value: model.cards.length > 0 ? model.monthlyLabel : "—" },
+              ]}
+            />
+          </section>
+        )}
+
+        {ready && model && !desktop && (
+          <div className="mt-3.5 flex items-center justify-between gap-2">
+            {syncPill}
+            <SyncButton syncing={syncing} onClick={manualSync} />
+          </div>
+        )}
+
+        {ready && (connectionBanner || model?.firstRead) && (
+          <div className="mt-5 space-y-3">
+            {connectionBanner && (
+              <BannerView
+                banner={connectionBanner}
+                testId="connection-banner"
+                extra={Math.max(connectionBanners.length - 1, 0)}
+                moreTestId="connection-banner-more"
+                onMore={() => setConnectionBannerIndex((index) => (index + 1) % connectionBanners.length)}
+                onAction={(action, id) => act(action, id)}
+              />
+            )}
+            {model?.firstRead && (
+              <p data-testid="first-read" className="text-sm text-muted-foreground">
+                Primeira leitura em até 24 horas.
+              </p>
+            )}
+          </div>
+        )}
+
+        {ready && model && tab && !desktop && (
+          <div
+            role="tablist"
+            aria-label="Meus planos"
+            data-testid="plan-tabs"
+            onKeyDown={onTabsKey}
+            className="mt-5 grid w-full grid-cols-2 rounded-xl border bg-card p-1 md:inline-grid md:w-auto"
+          >
+            {TABS.map((item) => {
+              const selected = tab === item;
+              const count = item === "assinaturas" ? model.cards.length : model.suggestions.length;
+              const parts = tabLabelParts(item, count);
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  role="tab"
+                  id={`tab-${item}`}
+                  data-testid={`tab-${item}`}
+                  aria-selected={selected}
+                  aria-controls={`panel-${item}`}
+                  tabIndex={selected ? 0 : -1}
+                  ref={(node) => {
+                    tabRefs.current[item] = node;
+                  }}
+                  onClick={() => selectTab(item)}
+                  className={cn(
+                    "flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-[9px] px-5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground md:min-w-44",
+                    selected && "bg-secondary text-foreground shadow-[inset_0_0_0_1px_var(--border)]",
+                  )}
+                >
+                  <span>{parts.name}</span>
+                  <span className="font-medium tabular-nums text-muted-foreground"> {parts.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {ready && model && (
+          <div className={cn(desktop && "mt-9 grid grid-cols-[minmax(0,1fr)_380px] items-start gap-6")}>
+            {showAssinaturas && (
+              <section
+                {...(desktop
+                  ? { "aria-labelledby": "heading-assinaturas" }
+                  : { role: "tabpanel", id: "panel-assinaturas", "aria-labelledby": "tab-assinaturas" })}
+                data-testid="panel-assinaturas"
+                className={cn("min-w-0", !desktop && "mt-4 space-y-4")}
+              >
+                {desktop && (
+                  <SectionHeading id="heading-assinaturas" title="Assinaturas" count={model.cards.length} note={model.cards.length > 1 ? "Ordenado por valor" : undefined} />
+                )}
+                {planBanner && (
+                  <BannerView
+                    banner={planBanner}
+                    testId="banner"
+                    extra={Math.max(planBanners.length - 1, 0)}
+                    moreTestId="banner-more"
+                    onMore={() => setPlanBannerIndex((index) => (index + 1) % planBanners.length)}
+                    onAction={(action, id) => act(action, id)}
+                    className={desktop ? "mb-3" : undefined}
+                  />
+                )}
+                {model.cards.length === 0 ? (
+                  <EmptyState
+                    testId="empty-assinaturas"
+                    legacy={model.empty}
+                    title="Nenhuma assinatura confirmada"
+                    hint={
+                      model.empty
+                        ? "Assim que uma cobrança recorrente aparecer no cartão, confirme para ela entrar no total."
+                        : model.suggestions.length > 0
+                          ? "Confirme uma sugestão para acompanhar o plano, o total e a última cobrança."
+                          : "Os planos confirmados aparecem aqui, com o total do mês."
+                    }
+                    action={
+                      model.suggestions.length > 0 && !desktop ? (
+                        <Button data-testid="empty-goto-suggestions" onClick={() => selectTab("sugestoes")}>
+                          Ver sugestões
+                        </Button>
+                      ) : null
+                    }
+                  />
+                ) : (
+                  <div className={cn(desktop ? "overflow-hidden rounded-[18px] border bg-card" : "grid grid-cols-1 gap-3 md:grid-cols-2")}>
+                    {model.cards.map((card) => (
+                      <article
+                        key={card.id}
+                        data-testid="plan-card"
+                        className={cn(
+                          desktop
+                            ? "grid grid-cols-[44px_minmax(0,1fr)_auto_auto] items-center gap-x-4 border-b px-5 py-[18px] last:border-b-0"
+                            : "min-w-0 rounded-[18px] border bg-card p-4",
+                        )}
+                      >
+                        <div className={cn(desktop ? "contents" : "flex items-center gap-3")}>
+                          <ServiceMark
+                            src={card.logoUrl === undefined ? `/logos/${card.service}.svg` : card.logoUrl}
+                            name={card.planName}
+                            fallback={card.logoFallback === true}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <h2 data-testid="plan-name" className="truncate text-base font-semibold leading-snug">
+                              {card.planName}
+                            </h2>
+                            <p data-testid="next-charge" className="mt-0.5 text-[13px] leading-snug text-muted-foreground">
+                              {card.nextChargeLabel}
+                            </p>
+                          </div>
+                          <p data-testid="plan-price" className="shrink-0 text-right text-base font-semibold lg:text-[17px]">
+                            <PerMonth label={card.priceLabel} stacked />
+                          </p>
+                        </div>
+                        <div className={cn("flex gap-2", desktop ? "items-center gap-1.5" : "mt-4")}>
+                          {card.manageUrl && (
+                            <Button asChild className={desktop ? "h-[38px] px-4" : "h-[42px] flex-1"}>
+                              <a data-testid="manage" href={card.manageUrl} target="_blank" rel="noopener noreferrer" aria-label={card.manageLabel}>
+                                Gerenciar
+                                <ExternalLink className="size-3.5" />
+                              </a>
+                            </Button>
+                          )}
+                          {desktop ? (
+                            <Button variant="ghost" size="icon-sm" data-testid="remove" title="Remover do Ciclo" onClick={() => setPending(card)}>
+                              <Trash2 aria-hidden="true" />
+                              <span className="sr-only">Remover</span>
+                            </Button>
+                          ) : (
+                            <Button variant="outline" className="h-[42px] flex-1" data-testid="remove" onClick={() => setPending(card)}>
+                              Remover
+                            </Button>
+                          )}
+                          {card.autoConfirmed && (
+                            <Button variant="ghost" className={desktop ? "h-[38px]" : "h-[42px]"} data-testid="undo-auto" onClick={() => act("undo", card.id)}>
+                              Desfazer
+                            </Button>
+                          )}
+                        </div>
+                        {(card.logoFallback || card.notice) && (
+                          <div className={cn("space-y-2", desktop ? "col-span-3 col-start-2 mt-3" : "mt-3")}>
+                            {card.logoFallback && (
+                              <form
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  const domain = String(new FormData(event.currentTarget).get("domain") ?? "");
+                                  void act("set-domain", card.id, undefined, domain);
+                                }}
+                              >
+                                <Input name="domain" className="h-10 text-sm" aria-label="Site do serviço" placeholder="Site do serviço" />
+                              </form>
+                            )}
+                            {card.notice && <p className="text-[13px] text-muted-foreground">{card.notice}</p>}
+                          </div>
+                        )}
+                      </article>
+                    ))}
+                    {desktop && (
+                      <div className="flex justify-between gap-4 bg-background/30 px-5 py-4 text-[13.5px] text-muted-foreground">
+                        <span>{model.suggestions.length > 0 ? "Confirme uma sugestão para ela aparecer aqui." : "Tudo o que o cartão mostrou está aqui."}</span>
+                        <span className="whitespace-nowrap">Total {model.monthlyLabel}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {!desktop && model.suggestions.length > 0 && (
+                  <div className="pt-3">
+                    <Eyebrow className="mb-2.5 text-muted-foreground">{plural(model.suggestions.length, "sugestão para revisar", "sugestões para revisar")}</Eyebrow>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {model.suggestions.map((suggestion) => (
+                        <button
+                          key={suggestion.id}
+                          type="button"
+                          data-testid="suggestion-peek"
+                          onClick={() => selectTab("sugestoes")}
+                          className="flex min-w-0 cursor-pointer items-center gap-3 rounded-[14px] border bg-card px-3.5 py-3 text-left transition-colors hover:bg-accent"
+                        >
+                          <ServiceMark src={suggestion.logoUrl} name={suggestion.planName} fallback={suggestion.logoFallback === true || !suggestion.logoUrl} small />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[15px] font-semibold">{suggestion.planName}</span>
+                            <span className="block truncate text-[13px] text-muted-foreground">
+                              {suggestion.priceLabel}
+                              {suggestion.confidence ? ` · confiança ${suggestion.confidence.score}%` : ""}
+                            </span>
+                          </span>
+                          <span className="whitespace-nowrap text-xs font-semibold text-brand">Revisar ›</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {showSugestoes && (
+              <section
+                {...(desktop
+                  ? { "aria-labelledby": "heading-sugestoes" }
+                  : { role: "tabpanel", id: "panel-sugestoes", "aria-labelledby": "tab-sugestoes" })}
+                data-testid="panel-sugestoes"
+                className={cn("min-w-0", !desktop && "mt-4 space-y-4")}
+              >
+                {desktop && <SectionHeading id="heading-sugestoes" title="Sugestões" count={model.suggestions.length} note="É assinatura?" />}
+                {model.suggestions.length === 0 ? (
+                  <EmptyState
+                    testId="empty-sugestoes"
+                    legacy={model.empty}
+                    title={model.firstRead ? "Nenhuma sugestão ainda" : "Nenhuma sugestão no momento"}
+                    hint={
+                      model.empty
+                        ? "Assim que uma cobrança recorrente aparecer no cartão, confirme para ela entrar no total."
+                        : model.firstRead
+                          ? "As possíveis assinaturas entram aqui quando a leitura do cartão terminar."
+                          : "Novas cobranças recorrentes do cartão aparecem aqui."
+                    }
+                    action={
+                      model.cards.length > 0 && !desktop ? (
+                        <Button data-testid="empty-goto-assinaturas" onClick={() => selectTab("assinaturas")}>
+                          Ver assinaturas
+                        </Button>
+                      ) : null
+                    }
+                  />
+                ) : (
+                  <>
+                    {suggestionBanner && !desktop && (
+                      <p data-testid="suggestion-heading" className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        {suggestionBanner.text}
+                      </p>
+                    )}
+                    <div className={cn("grid grid-cols-1 gap-3", !desktop && "md:grid-cols-2")}>
+                      {model.suggestions.map((suggestion) => (
+                        <Card asArticle key={suggestion.id} data-testid="suggestion" className="flex min-w-0 flex-col rounded-[18px] p-[18px]">
+                          <div className="flex items-center gap-3">
+                            <ServiceMark src={suggestion.logoUrl} name={suggestion.planName} fallback={suggestion.logoFallback === true || !suggestion.logoUrl} />
+                            <div className="min-w-0 flex-1">
+                              <h2 className="truncate text-base font-semibold leading-snug">{suggestion.planName}</h2>
+                              {!suggestion.confidence && suggestion.label && <p className="mt-0.5 text-[13px] text-muted-foreground">{suggestion.label}</p>}
+                              {!suggestion.confidence && suggestion.checked && <p className="mt-0.5 text-[13px] text-muted-foreground">Sugestão marcada</p>}
+                            </div>
+                            <p className="shrink-0 text-right text-base font-semibold lg:text-[17px]">
+                              <PerMonth label={suggestion.priceLabel} stacked />
+                            </p>
+                          </div>
+                          {suggestion.confidence && <ConfidenceBar confidence={suggestion.confidence} />}
+                          {suggestion.apple && (
+                            <label className="mt-4 grid gap-1.5 text-sm font-medium">
+                              Serviço
+                              <select
+                                data-testid="apple-picker"
+                                aria-label="Escolher o serviço desta assinatura da Apple"
+                                className="h-11 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-sm text-foreground"
+                                value={appleService[suggestion.id] ?? ""}
+                                onChange={(event) => setAppleService((current) => ({ ...current, [suggestion.id]: event.target.value }))}
+                              >
+                                <option value="">Escolher serviço</option>
+                                {model.appleChoices.map((choice) => (
+                                  <option key={choice.id} value={choice.id}>
+                                    {choice.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                          <div className="mt-auto flex gap-2 pt-4">
+                            <Button className="h-[42px] flex-1" data-testid="suggestion-yes" onClick={() => confirmSuggestion(suggestion)}>
+                              É assinatura
+                            </Button>
+                            <Button variant="outline" className="h-[42px] flex-1" data-testid="suggestion-no" onClick={() => act("ignore", suggestion.id)}>
+                              Não é
+                            </Button>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </section>
+            )}
+          </div>
+        )}
+      </div>
+
+      {removeDialogs}
 
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-col items-center gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         {toastId && (
@@ -818,42 +914,105 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   );
 }
 
+const DESKTOP_QUERY = "(min-width: 1024px)";
+
+function subscribeDesktop(onChange: () => void) {
+  const media = window.matchMedia(DESKTOP_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+/** Desktop shows both lists side by side. Phones and tablets use the tabs. */
+function useDesktop(): boolean {
+  return useSyncExternalStore(
+    subscribeDesktop,
+    () => window.matchMedia(DESKTOP_QUERY).matches,
+    () => false,
+  );
+}
+
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** "R$ 113,85/mês" keeps its text, with "/mês" set smaller. */
-function PerMonth({ label }: { label: string }) {
+/** "R$ 113,85/mês" keeps its text, with "/mês" set smaller (or on its own line). */
+function PerMonth({ label, stacked = false }: { label: string; stacked?: boolean }) {
   const cut = label.lastIndexOf("/");
   if (cut <= 0) return <>{label}</>;
+  if (stacked) {
+    return (
+      <>
+        {label.slice(0, cut)}
+        <span className="block text-xs font-medium text-muted-foreground">{label.slice(cut)}</span>
+      </>
+    );
+  }
   return (
     <>
       {label.slice(0, cut)}
-      <span className="ml-0.5 text-[0.45em] font-medium tracking-normal opacity-70">{label.slice(cut)}</span>
+      <span className="ml-1 text-[0.38em] font-medium tracking-normal opacity-70">{label.slice(cut)}</span>
     </>
   );
 }
 
-function Summary({ eyebrow, children }: { eyebrow: string; children: ReactNode }) {
+function Eyebrow({ className, children }: { className?: string; children: ReactNode }) {
+  return <p className={cn("text-xs font-semibold uppercase tracking-[0.08em]", className)}>{children}</p>;
+}
+
+function HeroGlow() {
+  return <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-brand/10 blur-2xl" />;
+}
+
+function StatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-hero-border bg-hero p-5 text-hero-foreground md:p-6">
-      <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-brand/10 blur-2xl" />
-      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-hero-muted">{eyebrow}</p>
-      {children}
+    <div className="rounded-[18px] border bg-card px-6 py-[22px]">
+      <Eyebrow className="text-muted-foreground">{label}</Eyebrow>
+      <p className="mt-3.5 text-[30px] font-semibold leading-tight tracking-[-0.03em]">{value}</p>
+      <p className="mt-2.5 text-sm text-muted-foreground">{hint}</p>
     </div>
   );
 }
 
-function SummaryStats({ items }: { items: { label: string; value: string }[] }) {
+function MiniStats({ items }: { items: { label: string; value: string }[] }) {
   return (
-    <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-hero-border pt-4">
+    <dl className="mt-[18px] grid grid-cols-2 gap-2.5 border-t border-hero-border pt-4">
       {items.map((item) => (
         <div key={item.label}>
-          <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-hero-muted">{item.label}</dt>
-          <dd className="mt-1 text-base font-semibold">{item.value}</dd>
+          <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-hero-muted">{item.label}</dt>
+          <dd className="mt-1 text-[17px] font-semibold">{item.value}</dd>
         </div>
       ))}
     </dl>
+  );
+}
+
+function SectionHeading({ id, title, count, note }: { id: string; title: string; count: number; note?: string }) {
+  return (
+    <div className="mb-3.5 flex items-baseline justify-between gap-3">
+      <h2 id={id} className="flex items-center gap-2.5 text-lg font-semibold tracking-[-0.02em]">
+        {title}
+        <Badge>{count}</Badge>
+      </h2>
+      {note && <span className="text-sm text-muted-foreground">{note}</span>}
+    </div>
+  );
+}
+
+function SyncButton({ syncing, onClick, iconOnly = false }: { syncing: boolean; onClick: () => void; iconOnly?: boolean }) {
+  return (
+    <Button
+      variant={iconOnly ? "ghost" : "outline"}
+      size="sm"
+      className={cn("shrink-0 rounded-full", iconOnly ? "size-7 p-0 text-foreground" : "h-9 bg-card px-3.5")}
+      data-testid="sync-now"
+      aria-label="Sincronizar agora"
+      aria-busy={syncing}
+      disabled={syncing}
+      onClick={onClick}
+    >
+      <RefreshCw className={cn("size-[15px]", syncing && "animate-spin")} />
+      {!iconOnly && <span aria-hidden="true">Sincronizar</span>}
+    </Button>
   );
 }
 
@@ -916,8 +1075,10 @@ function BannerView({
   moreTestId,
   onMore,
   onAction,
+  className,
 }: {
   banner: Banner;
+  className?: string;
   testId: string;
   extra: number;
   moreTestId: string;
@@ -925,7 +1086,7 @@ function BannerView({
   onAction: (action: string, id: string) => void;
 }) {
   return (
-    <section data-testid={testId} role="status" className={cn("rounded-xl border px-4 py-3.5 text-sm", BANNER_TONES[banner.tone])}>
+    <section data-testid={testId} role="status" className={cn("rounded-xl border px-4 py-3.5 text-sm", BANNER_TONES[banner.tone], className)}>
       <p className="font-medium">{banner.text}</p>
       {(banner.actions.length > 0 || extra > 0) && (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -953,18 +1114,19 @@ function BannerView({
   );
 }
 
-function ServiceMark({ src, name, fallback }: { src?: string | null; name: string; fallback?: boolean }) {
+function ServiceMark({ src, name, fallback, small = false }: { src?: string | null; name: string; fallback?: boolean; small?: boolean }) {
   const [failed, setFailed] = useState(false);
+  const box = small ? "size-9 rounded-[10px]" : "size-11 rounded-xl";
   if (fallback || !src || failed) {
     return (
-      <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl bg-secondary text-base font-semibold text-foreground">
+      <span aria-hidden="true" className={cn("grid shrink-0 place-items-center bg-secondary text-base font-semibold text-foreground", box)}>
         {name.slice(0, 1).toUpperCase()}
       </span>
     );
   }
   return (
-    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#f7f4ee] ring-1 ring-black/5">
-      <img className="logo size-6 object-contain" src={src} alt="" onError={() => setFailed(true)} />
+    <span className={cn("grid shrink-0 place-items-center bg-[#f7f4ee] ring-1 ring-black/5", box)}>
+      <img className={cn("logo object-contain", small ? "size-5" : "size-6")} src={src} alt="" onError={() => setFailed(true)} />
     </span>
   );
 }
