@@ -104,26 +104,38 @@ test("confirmed cards show the last charge and suggestions show a confidence bar
     await route.fulfill({ json: payload });
   });
 
-  const shots: Array<[string, { width: number; height: number }, "light" | "dark"]> = [
-    ["mobile-light", { width: 390, height: 844 }, "light"],
-    ["desktop-light", { width: 1440, height: 900 }, "light"],
-    ["mobile-dark", { width: 390, height: 844 }, "dark"],
-    ["desktop-dark", { width: 1440, height: 900 }, "dark"],
+  const shots: Array<[{ width: number; height: number }, "light" | "dark"]> = [
+    [{ width: 390, height: 844 }, "light"],
+    [{ width: 1440, height: 900 }, "light"],
+    [{ width: 390, height: 844 }, "dark"],
+    [{ width: 1440, height: 900 }, "dark"],
   ];
 
-  for (const [name, viewport, scheme] of shots) {
+  for (const [viewport, scheme] of shots) {
+    const size = viewport.width === 390 ? "mobile" : "desktop";
     await page.emulateMedia({ colorScheme: scheme });
     await page.setViewportSize(viewport);
-    await page.goto("/");
+    await page.goto("/?aba=assinaturas");
     await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+    await expect(page.getByTestId("tab-assinaturas")).toHaveText("Assinaturas (1)");
+    await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (3)");
     await expect(page.getByTestId("next-charge")).toContainText("Última cobrança: 19/08");
     await expect(page.getByTestId("next-charge")).toContainText("Sem cobrança recente");
     await expect(page.getByTestId("next-charge")).not.toContainText("Próxima cobrança");
-    await expect(page.getByText("Alta chance").first()).toBeVisible();
-    await expect(page.getByText("88%").first()).toBeVisible();
-    await expect(page.getByText("5 meses seguidos").first()).toBeVisible();
-    const logos = page.locator("img.logo");
-    await expect(logos.first()).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true });
+    await expect(page.locator("#panel-assinaturas img.logo")).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`${size}-${scheme}-assinaturas.png`), fullPage: true });
+
+    await page.getByTestId("tab-sugestoes").click();
+    await expect(page.getByTestId("panel-sugestoes")).toBeVisible();
+    const cards = page.getByTestId("suggestion");
+    await expect(cards).toHaveCount(3);
+    await expect(cards.nth(0)).toContainText("Netflix Padrão");
+    await expect(cards.nth(0)).toContainText("Alta chance");
+    await expect(cards.nth(0)).toContainText("88%");
+    await expect(cards.nth(0)).toContainText("5 meses seguidos");
+    await expect(cards.nth(1)).toContainText("Suno");
+    await expect(cards.nth(2)).toContainText("Academia Fit");
+    await expect(page.locator("#panel-sugestoes img.logo").first()).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`${size}-${scheme}-sugestoes.png`), fullPage: true });
   }
 });
