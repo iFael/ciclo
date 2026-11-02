@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Check, ExternalLink, LogOut, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
-import { Brand, CycleMark } from "@/components/brand";
+import { Brand, CycleMark, LoadingScreen } from "@/components/brand";
 import { StatementSearch } from "@/components/statement-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
@@ -502,11 +502,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
           Suas assinaturas, encontradas automaticamente no seu cartão.
         </p>
 
-        {!model && !error && (
-          <p data-testid="loading" className="mt-6 text-sm text-muted-foreground">
-            Carregando planos…
-          </p>
-        )}
+        {!model && !error && <LoadingScreen />}
         {error && (
           <p data-testid="load-error" role="alert" className="mt-6 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive">
             Não foi possível carregar seus planos.
