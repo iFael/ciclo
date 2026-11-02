@@ -768,6 +768,7 @@ test("alinha preços e ações com e sem link no desktop, sem perder o layout mo
     card({ id: "gran", service: "unknown", planName: "Gran Faculdade", priceLabel: "R$ 77,00/mês", manageUrl: null }),
   ];
   await mockPlans(page, model(cards));
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto("/");
 
