@@ -206,3 +206,13 @@ describe("manage link chosen by the user", () => {
     expect(buildScreen(cleared, NOW).cards[0].manageUrl).toBe("https://apps.apple.com/account/subscriptions");
   });
 });
+
+describe("logo from the manage link", () => {
+  it("uses the link's site, except store pages and the service's own catalog site", async () => {
+    const { logoDomainFromLink } = await import("@/lib/http/plans");
+    expect(logoDomainFromLink("https://faculdade.grancursosonline.com.br/minha-conta", "unknown")).toBe("faculdade.grancursosonline.com.br");
+    expect(logoDomainFromLink("https://apps.apple.com/account/subscriptions", "chatgpt")).toBeNull();
+    expect(logoDomainFromLink("https://play.google.com/store/account/subscriptions", "unknown")).toBeNull();
+    expect(logoDomainFromLink("https://chatgpt.com/settings/billing", "chatgpt")).toBeNull();
+  });
+});

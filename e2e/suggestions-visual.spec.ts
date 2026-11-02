@@ -177,8 +177,7 @@ test("confirmed cards show the last charge and suggestions show a confidence bar
 
   await page.getByTestId("change-logo").first().click();
   await expect(page.getByTestId("plan-edit-form")).toBeVisible();
-  await expect(page.getByLabel("Site do serviço")).toBeFocused();
-  await expect(page.getByLabel("Link do botão Gerenciar")).toBeVisible();
+  await expect(page.getByLabel("Link do botão Gerenciar")).toBeFocused();
   await page.getByTestId("change-logo").first().click();
   await expect(page.getByTestId("plan-edit-form")).toHaveCount(0);
 });

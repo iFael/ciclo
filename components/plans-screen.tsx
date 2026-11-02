@@ -728,32 +728,25 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                                 onSubmit={async (event) => {
                                   event.preventDefault();
                                   const data = new FormData(event.currentTarget);
-                                  const domain = String(data.get("domain") ?? "").trim();
                                   const url = String(data.get("manage-url") ?? "").trim();
                                   const currentUrl = card.customManageUrl ? (card.manageUrl ?? "") : "";
-                                  let ok = true;
-                                  if (domain) ok = await act("set-domain", card.id, undefined, domain);
-                                  if (ok && url !== currentUrl) ok = await act("set-manage-url", card.id, undefined, undefined, undefined, url);
+                                  const ok = url === currentUrl || (await act("set-manage-url", card.id, undefined, undefined, undefined, url));
                                   if (ok) setEditingLogo(null);
                                 }}
                               >
-                                <label className="grid gap-1 text-sm font-medium">
-                                  Logo
-                                  <Input name="domain" autoFocus className="h-10 text-sm font-normal" aria-label="Site do serviço" placeholder="Ex.: chatgpt.com" />
-                                  <span className="text-[12px] font-normal text-muted-foreground">Só o site do serviço. Usamos para buscar o logo.</span>
-                                </label>
                                 <label className="grid gap-1 text-sm font-medium">
                                   Link do Gerenciar
                                   <Input
                                     name="manage-url"
                                     data-testid="manage-url-input"
+                                    autoFocus
                                     className="h-10 text-sm font-normal"
                                     aria-label="Link do botão Gerenciar"
                                     defaultValue={card.customManageUrl ? (card.manageUrl ?? "") : ""}
                                     placeholder={card.manageUrl ?? "Ex.: https://chatgpt.com/settings/billing"}
                                   />
                                   <span className="text-[12px] font-normal text-muted-foreground">
-                                    A página que o botão Gerenciar abre. Deixe vazio para usar o link padrão.
+                                    A página que o botão Gerenciar abre. O logo vem do mesmo site. Deixe vazio para usar o link padrão.
                                   </span>
                                 </label>
                                 <div className="flex gap-2">
