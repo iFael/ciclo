@@ -382,5 +382,117 @@ describe("screen and safety", () => {
     const back = applyAction(removed, { action: "undo", id: confirmed.subscriptions[0].id }, NOW);
     expect(back.subscriptions[0].status).toBe("confirmed");
     expect(confirmedMonthlyTotal(back)).toBe(110);
+    expect(removed.subscriptions[0].status).toBe("dismissed");
+    expect(removed.subscriptions[0].dismissedAt).toBe(NOW.toISOString());
+    const stillCharging = {
+      ...removed,
+      charges: [
+        ...removed.charges,
+        {
+          subscriptionId: removed.subscriptions[0].id,
+          chargeDate: "2026-12-01",
+          amount: 110,
+          transactionId: "later",
+          resolved: false,
+        },
+      ],
+    };
+    expect(
+      buildScreen(stillCharging, new Date("2026-12-15T15:00:00.000Z")).banners.some((item) => item.text.startsWith("Ainda cobrando:")),
+    ).toBe(true);
+  });
+
+  it("sends a confirmed suggestion back to the list and lets undo restore the plan", () => {
+    const claude = subscription({
+      id: "claude",
+      service: "claude",
+      planName: "Claude Pro",
+      status: "suggested",
+      merchantKey: "claude",
+      amount: 113.85,
+      approximate: true,
+      suggestionLabel: "Pode ser recorrente",
+      descriptors: ["ANTHROPIC CLAUDE SUB"],
+      expectedChargeDate: "2026-11-15",
+    });
+    const other = subscription({
+      id: "other",
+      service: "unknown",
+      planName: "Suno Inc",
+      status: "suggested",
+      merchantKey: "unknown:SUNO INC",
+      amount: 51.75,
+      approximate: false,
+      suggestionLabel: null,
+      descriptors: ["SUNO INC"],
+    });
+    const base = state({ subscriptions: [claude, other], connections: [] });
+    expect(suggestionCount(base)).toBe("Encontramos 2 possíveis assinaturas");
+
+    const confirmed = applyAction(base, { action: "confirm", id: "claude" }, NOW);
+    expect(confirmed.subscriptions.find((item) => item.id === "claude")?.status).toBe("confirmed");
+    expect(confirmed.subscriptions.find((item) => item.id === "claude")?.suppressAutoConfirm).toBe(true);
+    const confirmedScreen = buildScreen(confirmed, NOW);
+    expect(confirmedScreen.cards.map((card) => card.planName)).toEqual(["Claude Pro"]);
+    expect(confirmedScreen.suggestions).toHaveLength(1);
+    expect(suggestionCount(confirmed)).toBe("Encontramos 1 possível assinatura");
+    expect(confirmedScreen.monthlyTotal).toBe(113.85);
+
+    const removed = applyAction(confirmed, { action: "remove", id: "claude" }, NOW);
+    const removedPlan = removed.subscriptions.find((item) => item.id === "claude");
+    expect(removedPlan?.status).toBe("suggested");
+    expect(removedPlan?.dismissedAt).toBeNull();
+    expect(removedPlan?.undoStatus).toBe("confirmed");
+    expect(removedPlan?.suppressAutoConfirm).toBe(true);
+    expect(removedPlan?.suggestionLabel).toBe("Pode ser recorrente");
+    const removedScreen = buildScreen(removed, NOW);
+    expect(removedScreen.cards).toHaveLength(0);
+    expect(removedScreen.suggestions.map((item) => item.planName)).toEqual(["Claude Pro", "Suno Inc"]);
+    expect(suggestionCount(removed)).toBe("Encontramos 2 possíveis assinaturas");
+    expect(removedScreen.monthlyTotal).toBe(0);
+    const charged = {
+      ...removed,
+      charges: [
+        {
+          subscriptionId: "claude",
+          chargeDate: "2026-12-01",
+          amount: 113.85,
+          transactionId: "later",
+          resolved: false,
+        },
+      ],
+    };
+    expect(buildScreen(charged, new Date("2026-12-15T15:00:00.000Z")).banners.some((item) => item.text.startsWith("Ainda cobrando:"))).toBe(false);
+
+    const found = detect(
+      [
+        tx({ id: "a", description: "ANTHROPIC* CLAUDE SUB", amount: 113.85, chargeDate: "2026-09-15" }),
+        tx({ id: "b", description: "ANTHROPIC* CLAUDE SUB", amount: 113.85, chargeDate: "2026-10-15" }),
+      ],
+      [],
+    );
+    const synced = mergeDetections(removed, found, true);
+    expect(synced.subscriptions.find((item) => item.id === "claude")?.status).toBe("suggested");
+    expect(suggestionCount(synced)).toBe("Encontramos 2 possíveis assinaturas");
+
+    const undone = applyAction(removed, { action: "undo", id: "claude" }, NOW);
+    expect(undone.subscriptions.find((item) => item.id === "claude")?.status).toBe("confirmed");
+    expect(undone.subscriptions.find((item) => item.id === "claude")?.undoStatus).toBeNull();
+    expect(buildScreen(undone, NOW).cards.map((card) => card.planName)).toEqual(["Claude Pro"]);
+    expect(suggestionCount(undone)).toBe("Encontramos 1 possível assinatura");
+    expect(confirmedMonthlyTotal(undone)).toBe(113.85);
+
+    const ignored = applyAction(removed, { action: "ignore", id: "claude" }, NOW);
+    expect(ignored.subscriptions.find((item) => item.id === "claude")?.status).toBe("ignored");
+    expect(ignored.ignoredDescriptors).toContain("ANTHROPIC CLAUDE SUB");
+    expect(buildScreen(ignored, NOW).suggestions.map((item) => item.planName)).toEqual(["Suno Inc"]);
+    const hidden = mergeDetections(ignored, found, true);
+    expect(hidden.subscriptions.filter((item) => item.merchantKey === "claude").every((item) => item.status === "ignored")).toBe(true);
+    expect(buildScreen(hidden, NOW).suggestions.some((item) => item.planName === "Claude Pro")).toBe(false);
+    expect(buildScreen(hidden, NOW).banners.some((item) => item.text.startsWith("Ainda cobrando:"))).toBe(false);
   });
 });
+
+function suggestionCount(current: AppState): string | undefined {
+  return buildScreen(current, NOW).banners.find((banner) => banner.id === "suggestions")?.text;
+}

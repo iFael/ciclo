@@ -18,6 +18,9 @@ type Card = {
   notice: string | null;
 };
 type Suggestion = { id: string; planName: string; label: string | null; checked: boolean; priceLabel: string; apple: boolean };
+
+const UNDO_TOAST_MS = 5000;
+
 type Model = {
   monthlyLabel: string;
   annualLabel: string;
@@ -68,7 +71,15 @@ export function PlansScreen() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  async function act(action: string, id: string, service?: string) {
+  useEffect(() => {
+    if (!toastId) return;
+    const timer = window.setTimeout(() => {
+      setToastId((current) => (current === toastId ? null : current));
+    }, UNDO_TOAST_MS);
+    return () => window.clearTimeout(timer);
+  }, [toastId]);
+
+  async function act(action: string, id: string, service?: string): Promise<boolean> {
     const response = await fetch("/api/plans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -76,9 +87,10 @@ export function PlansScreen() {
     });
     if (!response.ok) {
       setError(true);
-      return;
+      return false;
     }
     setModel((await response.json()) as Model);
+    return true;
   }
 
   const banner = model?.banners[bannerIndex] ?? model?.banners[0];
@@ -292,9 +304,10 @@ export function PlansScreen() {
                 type="button"
                 data-testid="remove-confirm"
                 onClick={async () => {
-                  await act("remove", pending.id);
-                  setToastId(pending.id);
+                  const id = pending.id;
+                  const removed = await act("remove", id);
                   setPending(null);
+                  if (removed) setToastId(id);
                 }}
               >
                 Remover do Ciclo
@@ -312,9 +325,10 @@ export function PlansScreen() {
           <span>Plano removido do Ciclo.</span>
           <button
             type="button"
-            onClick={async () => {
-              await act("undo", toastId);
+            onClick={() => {
+              const id = toastId;
               setToastId(null);
+              if (id) void act("undo", id);
             }}
           >
             Desfazer
