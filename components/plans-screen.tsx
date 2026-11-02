@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Check, ExternalLink, LogOut, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { Brand, CycleMark } from "@/components/brand";
 import { StatementSearch } from "@/components/statement-search";
@@ -12,6 +12,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { haptic, RollingAmount, Tilt } from "@/components/vivid";
 import { cn } from "@/lib/utils";
 import { bannerPlacement, isPlansTab, resolvePlansTab, tabLabelParts, type PlansTab } from "@/lib/plans-tabs";
 import { shouldStartAutoSync, suggestionSummary, syncErrorMessage, SYNC_COOLDOWN_MS } from "@/lib/sync-policy";
@@ -193,6 +194,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   const [syncing, setSyncing] = useState(false);
   const [syncToast, setSyncToast] = useState<{ title: string; detail?: string } | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [editingLogo, setEditingLogo] = useState<string | null>(null);
   const desktop = useDesktop();
   const tabRefs = useRef<Partial<Record<PlansTab, HTMLButtonElement | null>>>({});
   const syncedAtRef = useRef<string | null>(null);
@@ -279,6 +281,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   }, [syncToast, syncError]);
 
   async function act(action: string, id: string, service?: string, domain?: string): Promise<boolean> {
+    haptic();
     const response = await fetch("/api/plans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -311,7 +314,10 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
 
   function selectTab(next: PlansTab, focus = false) {
     setAddedToast(0);
-    if (next !== tab) writeTab(next, "push");
+    if (next !== tab) {
+      haptic(6);
+      writeTab(next, "push");
+    }
     if (focus) tabRefs.current[next]?.focus();
   }
 
@@ -331,7 +337,10 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   async function confirmSuggestion(suggestion: Suggestion) {
     const picked = suggestion.apple ? appleService[suggestion.id] : undefined;
     const ok = picked ? await act("pick-apple", suggestion.id, picked) : await act("confirm", suggestion.id);
-    if (ok) setAddedToast((current) => current + 1);
+    if (ok) {
+      haptic([10, 40, 16]);
+      setAddedToast((current) => current + 1);
+    }
   }
 
   const manualSync = () => startSync("manual", undefined, syncedAtRef, setModel, setSyncing, setSyncToast, setSyncError);
@@ -506,27 +515,27 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
 
         {ready && model && desktop && (
           <section aria-label="Resumo" className="mt-8 grid grid-cols-[1.35fr_1fr_1fr] gap-4">
-            <div className="relative overflow-hidden rounded-[18px] border border-hero-border bg-hero px-6 py-[22px] text-hero-foreground">
+            <Tilt className="rise overflow-hidden rounded-[18px] border border-hero-border bg-hero px-6 py-[22px] text-hero-foreground">
               <HeroGlow />
               <Eyebrow className="text-hero-muted">Gasto mensal</Eyebrow>
               <p data-testid="monthly-total" className="mt-3 text-[52px] font-bold leading-none tracking-[-0.04em]">
-                <PerMonth label={model.monthlyLabel} />
+                <PerMonth label={model.monthlyLabel} roll />
               </p>
               <p className="mt-2.5 text-sm text-hero-muted">
                 <span data-testid="annual-total">{model.annualLabel}</span> · {plural(model.cards.length, "assinatura ativa", "assinaturas ativas")}
               </p>
-            </div>
-            <StatCard label="Ativas" value={plural(model.cards.length, "assinatura", "assinaturas")} hint="Confirmadas no seu cartão" />
-            <StatCard label="Para revisar" value={plural(model.suggestions.length, "sugestão", "sugestões")} hint="Encontradas no seu cartão" />
+            </Tilt>
+            <StatCard index={1} label="Ativas" value={plural(model.cards.length, "assinatura", "assinaturas")} hint="Confirmadas no seu cartão" />
+            <StatCard index={2} label="Para revisar" value={plural(model.suggestions.length, "sugestão", "sugestões")} hint="Encontradas no seu cartão" />
           </section>
         )}
 
         {ready && model && !desktop && tab === "assinaturas" && (
-          <section aria-label="Resumo" className="relative mt-4 overflow-hidden rounded-[20px] border border-hero-border bg-hero p-5 text-hero-foreground">
+          <section aria-label="Resumo" className="rise relative mt-4 overflow-hidden rounded-[20px] border border-hero-border bg-hero p-5 text-hero-foreground">
             <HeroGlow />
             <Eyebrow className="text-hero-muted">Gasto mensal</Eyebrow>
             <p data-testid="monthly-total" className="mt-2.5 text-[40px] font-bold leading-none tracking-[-0.04em]">
-              <PerMonth label={model.monthlyLabel} />
+              <PerMonth label={model.monthlyLabel} roll />
             </p>
             <p data-testid="annual-total" className="mt-2 text-[13.5px] text-hero-muted">
               {model.annualLabel}
@@ -540,7 +549,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
           </section>
         )}
         {ready && model && !desktop && tab === "sugestoes" && (
-          <section aria-label="Resumo" className="relative mt-4 overflow-hidden rounded-[20px] border border-hero-border bg-hero p-5 text-hero-foreground">
+          <section aria-label="Resumo" className="rise relative mt-4 overflow-hidden rounded-[20px] border border-hero-border bg-hero p-5 text-hero-foreground">
             <HeroGlow />
             <Eyebrow className="text-hero-muted">Para revisar</Eyebrow>
             <p className="mt-2.5 text-[40px] font-bold leading-none tracking-[-0.04em]">
@@ -636,7 +645,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                 className={cn("min-w-0", !desktop && "mt-4 space-y-4")}
               >
                 {desktop && (
-                  <SectionHeading id="heading-assinaturas" title="Assinaturas" count={model.cards.length} note={model.cards.length > 1 ? "Ordenado por valor" : undefined} />
+                  <SectionHeading id="heading-assinaturas" title="Assinaturas" count={model.cards.length} />
                 )}
                 {planBanner && (
                   <BannerView
@@ -671,22 +680,38 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                   />
                 ) : (
                   <div className={cn(desktop ? "overflow-hidden rounded-[18px] border bg-card" : "grid grid-cols-1 gap-3 md:grid-cols-2")}>
-                    {model.cards.map((card) => (
+                    {model.cards.map((card, index) => (
                       <article
                         key={card.id}
                         data-testid="plan-card"
+                        style={{ "--i": index } as CSSProperties}
                         className={cn(
+                          "rise",
                           desktop
-                            ? "grid grid-cols-[44px_minmax(0,1fr)_auto_auto] items-center gap-x-4 border-b px-5 py-[18px] last:border-b-0"
-                            : "min-w-0 rounded-[18px] border bg-card p-4",
+                            ? "grid grid-cols-[44px_minmax(0,1fr)_auto_auto] items-center gap-x-4 border-b px-5 py-[18px] transition-colors last:border-b-0 hover:bg-accent/30"
+                            : "pressable lift min-w-0 rounded-[18px] border bg-card p-4",
                         )}
                       >
                         <div className={cn(desktop ? "contents" : "flex items-center gap-3")}>
-                          <ServiceMark
-                            src={card.logoUrl === undefined ? `/logos/${card.service}.svg` : card.logoUrl}
-                            name={card.planName}
-                            fallback={card.logoFallback === true}
-                          />
+                          <button
+                            type="button"
+                            data-testid="change-logo"
+                            className="pressable shrink-0 cursor-pointer rounded-xl"
+                            title="Trocar logo"
+                            aria-label={`Trocar logo de ${card.planName}`}
+                            aria-expanded={editingLogo === card.id}
+                            onClick={() => {
+                              haptic(6);
+                              setEditingLogo((current) => (current === card.id ? null : card.id));
+                            }}
+                          >
+                            <ServiceMark
+                              key={card.logoUrl ?? "none"}
+                              src={card.logoUrl === undefined ? `/logos/${card.service}.svg` : card.logoUrl}
+                              name={card.planName}
+                              fallback={card.logoFallback === true}
+                            />
+                          </button>
                           <div className="min-w-0 flex-1">
                             <h2 data-testid="plan-name" className="truncate text-base font-semibold leading-snug">
                               {card.planName}
@@ -724,17 +749,25 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                             </Button>
                           )}
                         </div>
-                        {(card.logoFallback || card.notice) && (
+                        {(card.logoFallback || card.notice || editingLogo === card.id) && (
                           <div className={cn("space-y-2", desktop ? "col-span-3 col-start-2 mt-3" : "mt-3")}>
-                            {card.logoFallback && (
+                            {(card.logoFallback || editingLogo === card.id) && (
                               <form
-                                onSubmit={(event) => {
+                                data-testid="logo-form"
+                                className={cn(editingLogo === card.id && "rise")}
+                                onSubmit={async (event) => {
                                   event.preventDefault();
                                   const domain = String(new FormData(event.currentTarget).get("domain") ?? "");
-                                  void act("set-domain", card.id, undefined, domain);
+                                  if (await act("set-domain", card.id, undefined, domain)) setEditingLogo(null);
                                 }}
                               >
-                                <Input name="domain" className="h-10 text-sm" aria-label="Site do serviço" placeholder="Site do serviço" />
+                                <Input
+                                  name="domain"
+                                  autoFocus={editingLogo === card.id}
+                                  className="h-10 text-sm"
+                                  aria-label="Site do serviço"
+                                  placeholder={card.logoFallback ? "Site do serviço" : "Site do serviço, para trocar o logo"}
+                                />
                               </form>
                             )}
                             {card.notice && <p className="text-[13px] text-muted-foreground">{card.notice}</p>}
@@ -742,12 +775,6 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                         )}
                       </article>
                     ))}
-                    {desktop && (
-                      <div className="flex justify-between gap-4 bg-background/30 px-5 py-4 text-[13.5px] text-muted-foreground">
-                        <span>{model.suggestions.length > 0 ? "Confirme uma sugestão para ela aparecer aqui." : "Tudo o que o cartão mostrou está aqui."}</span>
-                        <span className="whitespace-nowrap">Total {model.monthlyLabel}</span>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -802,7 +829,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                           type="button"
                           data-testid="suggestion-peek"
                           onClick={() => selectTab("sugestoes")}
-                          className="flex min-w-0 cursor-pointer items-center gap-3 rounded-[14px] border bg-card px-3.5 py-3 text-left transition-colors hover:bg-accent"
+                          className="pressable flex min-w-0 cursor-pointer items-center gap-3 rounded-[14px] border bg-card px-3.5 py-3 text-left hover:bg-accent"
                         >
                           <ServiceMark src={suggestion.logoUrl} name={suggestion.planName} fallback={suggestion.logoFallback === true || !suggestion.logoUrl} small />
                           <span className="min-w-0 flex-1">
@@ -829,7 +856,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                 data-testid="panel-sugestoes"
                 className={cn("min-w-0", !desktop && "mt-4 space-y-4")}
               >
-                {desktop && <SectionHeading id="heading-sugestoes" title="Sugestões" count={model.suggestions.length} note="É assinatura?" />}
+                {desktop && <SectionHeading id="heading-sugestoes" title="Sugestões" count={model.suggestions.length} />}
                 {model.suggestions.length === 0 ? (
                   <EmptyState
                     testId="empty-sugestoes"
@@ -858,8 +885,14 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                       </p>
                     )}
                     <div className={cn("grid grid-cols-1 gap-3", !desktop && "md:grid-cols-2")}>
-                      {model.suggestions.map((suggestion) => (
-                        <Card asArticle key={suggestion.id} data-testid="suggestion" className="flex min-w-0 flex-col rounded-[18px] p-[18px]">
+                      {model.suggestions.map((suggestion, index) => (
+                        <Card
+                          asArticle
+                          key={suggestion.id}
+                          data-testid="suggestion"
+                          style={{ "--i": index } as CSSProperties}
+                          className="rise lift flex min-w-0 flex-col rounded-[18px] p-[18px] transition-[transform,box-shadow] duration-300"
+                        >
                           <div className="flex items-center gap-3">
                             <ServiceMark src={suggestion.logoUrl} name={suggestion.planName} fallback={suggestion.logoFallback === true || !suggestion.logoUrl} />
                             <div className="min-w-0 flex-1">
@@ -983,9 +1016,17 @@ function plural(count: number, one: string, many: string): string {
 }
 
 /** "R$ 113,85/mês" keeps its text, with "/mês" set smaller (or on its own line). */
-function PerMonth({ label, stacked = false }: { label: string; stacked?: boolean }) {
+function PerMonth({ label, stacked = false, roll = false }: { label: string; stacked?: boolean; roll?: boolean }) {
   const cut = label.lastIndexOf("/");
   if (cut <= 0) return <>{label}</>;
+  if (roll) {
+    return (
+      <>
+        <RollingAmount text={label.slice(0, cut)} />
+        <span className="ml-1 text-[0.38em] font-medium tracking-normal opacity-70">{label.slice(cut)}</span>
+      </>
+    );
+  }
   if (stacked) {
     return (
       <>
@@ -1010,13 +1051,13 @@ function HeroGlow() {
   return <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-brand/10 blur-2xl" />;
 }
 
-function StatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
+function StatCard({ label, value, hint, index = 0 }: { label: string; value: string; hint: string; index?: number }) {
   return (
-    <div className="rounded-[18px] border bg-card px-6 py-[22px]">
+    <Tilt style={{ "--i": index } as CSSProperties} className="rise rounded-[18px] border bg-card px-6 py-[22px]">
       <Eyebrow className="text-muted-foreground">{label}</Eyebrow>
       <p className="mt-3.5 text-[30px] font-semibold leading-tight tracking-[-0.03em]">{value}</p>
       <p className="mt-2.5 text-sm text-muted-foreground">{hint}</p>
-    </div>
+    </Tilt>
   );
 }
 
@@ -1069,7 +1110,7 @@ function Toast({ testId, tone = "default", children }: { testId: string; tone?: 
       data-testid={testId}
       role={tone === "error" ? "alert" : "status"}
       className={cn(
-        "pointer-events-auto flex w-full max-w-sm items-center justify-between gap-3 rounded-xl border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-2xl animate-in fade-in-0 slide-in-from-bottom-2",
+        "pointer-events-auto flex w-full max-w-sm items-center justify-between gap-3 rounded-xl border bg-popover px-4 py-3 text-sm text-popover-foreground shadow-2xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-4 duration-300",
         tone === "error" && "border-destructive/50 text-destructive",
       )}
     >

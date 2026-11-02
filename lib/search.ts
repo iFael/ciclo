@@ -1,4 +1,4 @@
-import { mergeDetections } from "@/lib/actions";
+import { dropShadowedSuggestions, mergeDetections } from "@/lib/actions";
 import { serviceInfo } from "@/lib/catalog";
 import { formatBrl, formatDayMonthYear, round2 } from "@/lib/format";
 import { classifyDescriptor, detect, excludedKind, isAppleBill, merchantIgnoreToken, type CandidateTx } from "@/lib/matching";
@@ -135,7 +135,7 @@ export function confirmFromSearch(input: AppState, rows: StoredTx[], key: string
     row.suggestionLabel = null;
     row.dismissedAt = null;
   }
-  return merged;
+  return dropShadowedSuggestions(merged);
 }
 
 function nextDay(iso: string): string {

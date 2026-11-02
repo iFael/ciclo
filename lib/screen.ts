@@ -1,10 +1,11 @@
+import { isShadowed } from "@/lib/actions";
 import { cadenceOf, chargeDates, isStaleCharge, lastChargeLabel } from "@/lib/charges";
 import { appleChoices, serviceInfo } from "@/lib/catalog";
 import { diffDays, todayInSaoPaulo } from "@/lib/dates";
 import { formatBrl, formatDayMonth, formatDayMonthYear, lastSyncAgeHours, round2 } from "@/lib/format";
 import { withLearned } from "@/lib/confidence";
 import { feedbackFrom, learnedAdjustment } from "@/lib/learning";
-import { scoreStoredCharges } from "@/lib/matching";
+import { classifyDescriptor, scoreStoredCharges } from "@/lib/matching";
 import { newestSyncedAt } from "@/lib/sync-policy";
 import type { AppState, Connection, ScreenBanner, ScreenModel, ServiceLogo, Subscription } from "@/lib/types";
 
@@ -19,8 +20,18 @@ function priceLabel(amount: number, approximate: boolean): string {
   return `${approximate ? "≈ " : ""}${formatBrl(amount)}/mês`;
 }
 
+/** The plan's service, or the catalog service its statement text now matches. */
+function serviceOf(subscription: Subscription): string {
+  if (subscription.service !== "unknown") return subscription.service;
+  for (const descriptor of subscription.descriptors) {
+    const found = classifyDescriptor(descriptor);
+    if (found) return found;
+  }
+  return "unknown";
+}
+
 function companyOf(subscription: Subscription): string {
-  return serviceInfo(subscription.service)?.company ?? "o provedor";
+  return serviceInfo(serviceOf(subscription))?.company ?? "o provedor";
 }
 
 export function confirmedMonthlyTotal(state: AppState): number {
@@ -43,8 +54,9 @@ function logoOf(subscription: Subscription, logos?: Map<string, ServiceLogo>): {
     if (hit.status === "ok" && hit.logoUrl) return { logoUrl: hit.logoUrl, logoFallback: false };
     return { logoUrl: null, logoFallback: true };
   }
-  const info = serviceInfo(subscription.service);
-  if (info?.logo && subscription.service !== "unknown") return { logoUrl: info.logo, logoFallback: false };
+  const service = serviceOf(subscription);
+  const info = serviceInfo(service);
+  if (info?.logo && service !== "unknown") return { logoUrl: info.logo, logoFallback: false };
   return { logoUrl: null, logoFallback: true };
 }
 
@@ -87,7 +99,7 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
     .filter((subscription) => subscription.status === "confirmed")
     .map((subscription) => {
       const inactive = isInactive(subscription, state, today);
-      const info = serviceInfo(subscription.service);
+      const info = serviceInfo(serviceOf(subscription));
       const company = companyOf(subscription);
       const dates = chargeDates(state, subscription.id);
       const last = anchorDate(subscription, state, today);
@@ -118,7 +130,7 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
   const feedback = feedbackFrom(state);
 
   const suggestions = state.subscriptions
-    .filter((subscription) => subscription.status === "suggested")
+    .filter((subscription) => subscription.status === "suggested" && !isShadowed(subscription, state.subscriptions))
     .map((subscription) => {
       const charges = state.charges
         .filter((charge) => charge.subscriptionId === subscription.id)

@@ -1,3 +1,5 @@
+import fixture from "./fixtures/catalog.json";
+import { setCatalog, type CatalogRow } from "@/lib/catalog";
 import { describe, expect, it } from "vitest";
 import { mergeDetections } from "@/lib/actions";
 import { cleanMerchantName, inferDomains, normalizeDomain } from "@/lib/logos/infer";
@@ -86,6 +88,7 @@ describe("logo resolution", () => {
       merchantKey: "unknown:SUNO:5990",
       service: "unknown",
       descriptor: "SUNO.COM",
+      bypassCatalog: true,
       now: NOW,
       cache: memoryLogoCache(),
       fetchImpl,
@@ -229,5 +232,42 @@ describe("suggestions already have a logo", () => {
     });
     expect(record.logoUrl).toBe(cached.logoUrl);
     expect(calls).toBe(0);
+  });
+
+  it("fetches the icon from the catalog site when the row has no stored logo", async () => {
+    setCatalog([...(fixture as CatalogRow[]), { id: "gran", serviceName: "Gran Faculdade", company: "Gran", plans: [], patterns: [["GRAN", "CENTRO", "UNIVE"]], logo: "", domains: ["faculdade.grancursosonline.com.br"] }]);
+    const calls: string[] = [];
+    const fetchImpl: LogoFetch = async (url) => {
+      calls.push(url);
+      if (url === "https://faculdade.grancursosonline.com.br") return body(`<link rel="icon" href="/gran.png">`, "text/html");
+      if (url.endsWith("/gran.png")) return body(png(128, 128, 900), "image/png");
+      throw new Error(`unexpected ${url}`);
+    };
+    const stale = { merchantKey: "unknown:GRAN CENTRO UNIVE", domain: "grancentrounive.com", logoUrl: null, sourceUrl: null, source: "fallback" as const, resolvedAt: NOW.toISOString(), status: "fallback" as const };
+    const record = await resolveLogo({
+      merchantKey: "unknown:GRAN CENTRO UNIVE",
+      service: "unknown",
+      descriptor: "GRAN CENTRO UNIVE",
+      now: NOW,
+      cache: memoryLogoCache([stale]),
+      fetchImpl,
+    });
+    setCatalog(fixture as CatalogRow[]);
+    expect(record).toMatchObject({ status: "ok", domain: "faculdade.grancursosonline.com.br", sourceUrl: "https://faculdade.grancursosonline.com.br/gran.png" });
+  });
+
+  it("keeps a site the user chose over the catalog logo", async () => {
+    const cache = memoryLogoCache();
+    const fetchImpl: LogoFetch = async (url) => {
+      if (url === "https://minhalogo.com") return body(`<link rel="icon" href="/m.png">`, "text/html");
+      if (url.endsWith("/m.png")) return body(png(128, 128, 900), "image/png");
+      throw new Error(`unexpected ${url}`);
+    };
+    const base = { merchantKey: "chatgpt", service: "chatgpt", descriptor: "OPENAI", now: NOW, cache, fetchImpl };
+    const chosen = await resolveLogo({ ...base, domainOverride: "minhalogo.com", bypassCatalog: true });
+    expect(chosen).toMatchObject({ status: "ok", pinned: true, domain: "minhalogo.com" });
+    expect(await resolveLogo(base)).toMatchObject({ pinned: true, domain: "minhalogo.com" });
+    const broken: LogoFetch = async () => body("no icons", "text/html");
+    expect(await resolveLogo({ ...base, fetchImpl: broken, domainOverride: "semicone.com", bypassCatalog: true })).toMatchObject({ domain: "minhalogo.com" });
   });
 });

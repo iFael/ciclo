@@ -37,7 +37,7 @@ export function applyAction(input: AppState, command: PlanAction, now: Date): Ap
     subscription.suggestionLabel = null;
     subscription.checked = false;
     subscription.undoStatus = null;
-    return state;
+    return dropShadowedSuggestions(state);
   }
 
   if (command.action === "ignore" && subscription.status === "suggested") {
@@ -284,5 +284,30 @@ export function attachKnownCharges(
       }
     }
   }
+  return state;
+}
+
+/** True when a confirmed or cancelled plan already covers this suggestion's merchant. */
+export function isShadowed(suggestion: Subscription, subscriptions: Subscription[]): boolean {
+  if (suggestion.status !== "suggested") return false;
+  const mine = new Set(suggestion.descriptors.map((descriptor) => merchantDescriptor(descriptor)));
+  return subscriptions.some((plan) => {
+    if (plan.id === suggestion.id || (plan.status !== "confirmed" && plan.status !== "cancelled")) return false;
+    if (plan.merchantKey === suggestion.merchantKey) return true;
+    const sameService = plan.service === suggestion.service && plan.service !== "unknown" && plan.service !== "apple";
+    return sameService || plan.descriptors.some((descriptor) => mine.has(merchantDescriptor(descriptor)));
+  });
+}
+
+/**
+ * A plan confirmed from search or by a known merchant gets its own key, so an
+ * older suggestion for the same merchant would linger. Remove it.
+ */
+export function dropShadowedSuggestions(input: AppState): AppState {
+  const removed = new Set(input.subscriptions.filter((item) => isShadowed(item, input.subscriptions)).map((item) => item.id));
+  if (removed.size === 0) return input;
+  const state = clone(input);
+  state.subscriptions = state.subscriptions.filter((item) => !removed.has(item.id));
+  state.charges = state.charges.filter((charge) => !removed.has(charge.subscriptionId));
   return state;
 }

@@ -1,4 +1,5 @@
 import { serviceInfo } from "@/lib/catalog";
+import { classifyDescriptor } from "@/lib/matching";
 import { inferDomains, normalizeDomain } from "@/lib/logos/infer";
 import type { AppState, ServiceLogo } from "@/lib/types";
 
@@ -183,15 +184,22 @@ export async function resolveLogo(input: {
   fetchImpl: LogoFetch;
 }): Promise<ServiceLogo> {
   const override = input.domainOverride ? normalizeDomain(input.domainOverride) : null;
+  const cached = await input.cache.get(input.merchantKey);
+  // The user's own choice of site wins over the catalog and over inference.
+  if (!override && cached?.pinned && cached.status === "ok") return cached;
+  // A plan confirmed before its service joined the catalog still says "unknown".
+  const service = input.service === "unknown" ? (classifyDescriptor(input.descriptor) ?? "unknown") : input.service;
   if (!input.bypassCatalog && !override) {
-    const curated = catalogRecord(input.merchantKey, input.service, input.now);
+    const curated = catalogRecord(input.merchantKey, service, input.now);
     if (curated) return curated;
   }
+  // A catalog row may list only the site: its icon is fetched like any other.
+  const catalogDomains = service === "unknown" ? [] : (serviceInfo(service)?.domains ?? []);
 
-  const cached = await input.cache.get(input.merchantKey);
-  if (cached && isCacheFresh(cached, input.now) && (!override || cached.domain === override)) return cached;
+  const cachedFits = override ? cached?.domain === override : catalogDomains.length === 0 || catalogDomains.includes(cached?.domain ?? "");
+  if (cached && isCacheFresh(cached, input.now) && cachedFits) return cached;
 
-  const domains = override ? [override] : inferDomains(input.descriptor).slice(0, 3);
+  const domains = override ? [override] : catalogDomains.length > 0 ? catalogDomains.slice(0, 3) : inferDomains(input.descriptor).slice(0, 3);
   for (const domain of domains) {
     const options = await candidatesFor(domain, input.fetchImpl);
     const site = options.filter((item) => item.source === "site").slice(0, 3);
@@ -210,6 +218,7 @@ export async function resolveLogo(input: {
         source: candidate.source === "catalog" ? "site" : candidate.source,
         resolvedAt: input.now.toISOString(),
         status: "ok",
+        ...(override ? { pinned: true } : {}),
       };
       await input.cache.put(record);
       return record;
@@ -225,6 +234,8 @@ export async function resolveLogo(input: {
     resolvedAt: input.now.toISOString(),
     status: "fallback",
   };
+  // A site the user typed that has no usable icon keeps the logo they had.
+  if (override && cached?.status === "ok") return cached;
   await input.cache.put(fallback);
   return fallback;
 }

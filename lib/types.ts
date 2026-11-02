@@ -86,6 +86,8 @@ export type ServiceLogo = {
   source: "catalog" | "site" | "google" | "duckduckgo" | "fallback";
   resolvedAt: string;
   status: "ok" | "fallback";
+  /** Chosen by the user through "Site do serviço"; wins over the catalog. */
+  pinned?: boolean;
 };
 
 export type ScreenCheck = {
