@@ -200,6 +200,21 @@ test("sincronizar agora mostra o aviso e atualiza os planos sem recarregar", asy
   expect(sync.count).toBe(1);
 });
 
+test("mostra qual etapa falhou quando a sincronização devolve um código", async ({ page }) => {
+  await mockPlans(page, () =>
+    plans({
+      footer: "Atualizado há 2 h",
+      syncedAt: new Date(Date.now() - 20_000).toISOString(),
+    }),
+  );
+  await countSync(page, async (route) => {
+    await route.fulfill({ status: 502, json: { error: "Não foi possível sincronizar agora.", code: "upsert_failed" } });
+  });
+  await page.goto("/");
+  await page.getByTestId("sync-now").click();
+  await expect(page.getByTestId("sync-error")).toHaveText("Não foi possível sincronizar agora. (upsert_failed)");
+});
+
 test("mostra um aviso de erro em português quando a sincronização falha", async ({ page }) => {
   await mockPlans(page, () =>
     plans({

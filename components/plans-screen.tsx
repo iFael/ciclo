@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Brand, CycleMark } from "@/components/brand";
 import { bannerPlacement, isPlansTab, resolvePlansTab, tabLabelParts, type PlansTab } from "@/lib/plans-tabs";
-import { shouldStartAutoSync, suggestionSummary, SYNC_COOLDOWN_MS } from "@/lib/sync-policy";
+import { shouldStartAutoSync, suggestionSummary, syncErrorMessage, SYNC_COOLDOWN_MS } from "@/lib/sync-policy";
 
 type Action = { id: string; label: string; href?: string; action?: string; targetId?: string };
 type Banner = { id: string; tone: "red" | "yellow" | "neutral"; text: string; actions: Action[] };
@@ -127,6 +127,7 @@ function startSync(
         newSuggestions?: number;
         message?: string;
         error?: string;
+        code?: string;
         retryAfterSeconds?: number;
         screen?: Model;
       } | null;
@@ -137,12 +138,12 @@ function startSync(
           retryAfterSeconds: body?.retryAfterSeconds ?? Math.round(SYNC_COOLDOWN_MS / 1000),
         };
       }
-      if (!response.ok || !body?.ok) return { kind: "error" as const, message: "Não foi possível sincronizar agora." };
+      if (!response.ok || !body?.ok) return { kind: "error" as const, message: syncErrorMessage(body?.code) };
       const count = body.newSuggestions ?? 0;
       const plans = body.screen ?? (await readPlans());
       return { kind: "ok" as const, newSuggestions: count, message: body.message || suggestionSummary(count), plans };
     } catch {
-      return { kind: "error" as const, message: "Não foi possível sincronizar agora." };
+      return { kind: "error" as const, message: syncErrorMessage() };
     } finally {
       setSyncing(false);
     }

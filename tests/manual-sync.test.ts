@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { setDepsForTests, type AppDeps } from "@/lib/deps";
 import { handleManualSync } from "@/lib/http/sync";
 import { createMemoryStore } from "@/lib/memory-store";
@@ -12,6 +12,7 @@ import {
   retryAfterSeconds,
   shouldStartAutoSync,
   suggestionSummary,
+  syncErrorMessage,
   SYNC_COOLDOWN_MS,
 } from "@/lib/sync-policy";
 import type { PluggySource } from "@/lib/pluggy/client";
@@ -166,6 +167,49 @@ describe("manual sync auth, throttle and reminders", () => {
     expect(runtime.mail).toEqual([]);
   });
 
+  it("names the failing step when the transaction batch is rejected", async () => {
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "info").mockImplementation((line?: unknown) => {
+      logs.push(String(line));
+    });
+    const store = createMemoryStore({ connections: [connection("2026-07-01T00:00:00.000Z")] });
+    store.upsertTransactions = async () => {
+      throw new Error("ON CONFLICT DO UPDATE command cannot affect row a second time OPENAI *CHATGPT SUBSCR");
+    };
+    useDeps(store, pluggy());
+    const response = await handleManualSync(request());
+    const body = (await response.json()) as { error: string; code?: string };
+    expect(response.status).toBe(502);
+    expect(body.code).toBe("upsert_failed");
+    expect(body.error).toBe("Não foi possível sincronizar agora.");
+    expect(JSON.stringify(body)).not.toContain("OPENAI *CHATGPT SUBSCR");
+    const logged = logs.join("\n");
+    expect(logged).toContain("upsert_failed");
+    expect(logged).not.toContain("OPENAI *CHATGPT SUBSCR");
+    expect(logged).not.toContain("item-should-not-leak");
+    expect(logged).not.toContain(SECRET);
+    spy.mockRestore();
+  });
+
+  it("names the failing step when the item read throws", async () => {
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "info").mockImplementation((line?: unknown) => {
+      logs.push(String(line));
+    });
+    const source = pluggy();
+    source.getItem = async () => {
+      throw new Error("pluggy_401 token-should-not-leak");
+    };
+    useDeps(createMemoryStore({ connections: [connection("2026-07-01T00:00:00.000Z")] }), source);
+    const response = await handleManualSync(request());
+    const body = (await response.json()) as { error: string; code?: string };
+    expect(response.status).toBe(502);
+    expect(body.code).toBe("item_failed");
+    expect(logs.join("\n")).toContain("item_failed");
+    expect(logs.join("\n")).not.toContain("token-should-not-leak");
+    spy.mockRestore();
+  });
+
   it("does not mention the cron secret or the reminder sender", () => {
     const handler = readFileSync(path.join(process.cwd(), "lib/http/sync.ts"), "utf8");
     const route = readFileSync(path.join(process.cwd(), "app/api/sync/route.ts"), "utf8");
@@ -216,6 +260,9 @@ describe("auto sync policy", () => {
     expect(suggestionSummary(3)).toBe("3 novas sugestões");
     expect(rateLimitMessage(45)).toBe("Você pode sincronizar de novo em 45 s.");
     expect(rateLimitMessage(120)).toBe("Você pode sincronizar de novo em 2 minutos.");
+    expect(syncErrorMessage()).toBe("Não foi possível sincronizar agora.");
+    expect(syncErrorMessage("upsert_failed")).toBe("Não foi possível sincronizar agora. (upsert_failed)");
+    expect(syncErrorMessage("OPENAI *CHATGPT SUBSCR")).toBe("Não foi possível sincronizar agora.");
     expect(countNewSuggestions(["a"], ["a", "b", "c"])).toBe(2);
     expect(retryAfterSeconds(new Date(now - SYNC_COOLDOWN_MS).toISOString(), new Date(now))).toBe(0);
   });

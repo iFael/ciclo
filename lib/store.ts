@@ -1,5 +1,12 @@
 import type { AppState, ServiceLogo, StoredTx } from "@/lib/types";
 
+/** Last row wins. Postgres rejects one upsert that names the same id twice. */
+export function dedupeStoredTransactions(rows: StoredTx[]): StoredTx[] {
+  const byId = new Map<string, StoredTx>();
+  for (const row of rows) byId.set(row.id, row);
+  return [...byId.values()];
+}
+
 export interface Store {
   load(): Promise<AppState>;
   save(state: AppState): Promise<void>;
