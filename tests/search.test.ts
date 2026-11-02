@@ -82,3 +82,16 @@ describe("shadowed suggestions", () => {
     expect(screen.cards.map((card) => card.planName)).toEqual(["Gran Centro Unive"]);
   });
 });
+
+describe("charges listed ahead of time", () => {
+  it("confirms a plan whose next installment is already dated in the coming bill", () => {
+    const today = "2026-11-02";
+    const dates = ["2026-06-26", "2026-07-26", "2026-08-26", "2026-09-26", "2026-10-26", "2026-11-21"];
+    const quero = dates.map((date, index) => tx(`q${index}`, "PG *QUERO EDUCACA", date, 15.48));
+    expect(detect(quero, [], today)).toHaveLength(1);
+    const state = confirmFromSearch(emptyState(), quero, searchStatement(emptyState(), quero, "quero")[0].key, today);
+    expect(state.subscriptions.map((item) => item.status)).toEqual(["confirmed"]);
+    const card = buildScreen(state, new Date("2026-11-02T12:00:00Z")).cards[0];
+    expect(card.nextChargeLabel).toBe("Última cobrança: 26/10");
+  });
+});
