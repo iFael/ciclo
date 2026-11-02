@@ -104,6 +104,8 @@ export function parseIgnored(ignored: string[]): { merchants: Set<string>; descr
   return { merchants, descriptors };
 }
 
+const WIDE_GAP_MIN_MONTHS = 4;
+
 type MonthStreak = { months: string[]; gapUsed: boolean };
 
 function monthIndex(month: string): number {
@@ -115,16 +117,19 @@ function monthIndex(month: string): number {
 export function monthlyStreak(dates: string[]): MonthStreak | null {
   const months = [...new Set(dates.map((date) => date.slice(0, 7)))].sort();
   if (months.length < MIN_MONTHLY_OCCURRENCES) return null;
-  const included = [months[months.length - 1]];
+  let included = [months[months.length - 1]];
   let gapUsed = false;
+  let wideGapAt: number | null = null;
   let previous = months[months.length - 1];
   for (let index = months.length - 2; index >= 0; index -= 1) {
     const delta = monthIndex(previous) - monthIndex(months[index]);
     if (delta === 1) {
       included.push(months[index]);
       previous = months[index];
-    } else if (delta === 2 && !gapUsed) {
+    } else if ((delta === 2 || delta === 3) && !gapUsed) {
+      // One hole: a missed month, or two when bank feeds skip a period.
       gapUsed = true;
+      if (delta === 3) wideGapAt = included.length;
       included.push(months[index]);
       previous = months[index];
     } else if (delta === 0) {
@@ -132,6 +137,11 @@ export function monthlyStreak(dates: string[]): MonthStreak | null {
     } else {
       break;
     }
+  }
+  // A two-month hole only counts inside a long, established streak.
+  if (wideGapAt !== null && included.length < WIDE_GAP_MIN_MONTHS) {
+    included = included.slice(0, wideGapAt);
+    gapUsed = false;
   }
   if (included.length < MIN_MONTHLY_OCCURRENCES) return null;
   return { months: included.sort(), gapUsed };
@@ -150,6 +160,8 @@ export function annualDates(dates: string[]): string[] | null {
     }
   }
   if (picked.length < MIN_ANNUAL_OCCURRENCES) return null;
+  // Same-price charges between the yearly ones mean a monthly plan with holes.
+  if (sorted.filter((date) => date >= picked[picked.length - 1]).length > picked.length) return null;
   return picked.sort();
 }
 
