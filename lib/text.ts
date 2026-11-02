@@ -37,6 +37,9 @@ export function matchesPattern(words: string[], phrase: string[]): boolean {
 const INTERMEDIARY_WORDS = new Set([
   "MERCADOPAGO",
   "MP",
+  "IFD",
+  "ZP",
+  "ASA",
   "PAYPAL",
   "PAGSEGURO",
   "PAGSEG",

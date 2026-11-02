@@ -187,14 +187,18 @@ describe("matching", () => {
     expect(jump).toEqual([]);
   });
 
-  it("never suggests a generic Apple bill, even across six months", () => {
+  it("groups a recurring Apple bill by amount as one Apple suggestion", () => {
     const months = ["2026-05-04", "2026-06-04", "2026-07-04", "2026-08-04", "2026-09-04", "2026-10-04"];
     const found = detect(
-      months.map((chargeDate, index) => tx({ id: `a${index}`, description: "APPLE.COM/BILL", amount: 21.9, chargeDate })),
+      [
+        ...months.map((chargeDate, index) => tx({ id: `a${index}`, description: "APPLE.COM/BILL", amount: 21.9, chargeDate })),
+        tx({ id: "once", description: "APPLE.COM/BILL", amount: 4.9, chargeDate: "2026-09-20" }),
+      ],
       [],
       "2026-11-01",
     );
-    expect(found).toEqual([]);
+    expect(found.map((item) => [item.merchantKey, item.planName])).toEqual([["apple:2190", "Assinatura via Apple"]]);
+    expect(detect(months.map((chargeDate, index) => tx({ id: `a${index}`, description: "APPLE.COM/BILL", amount: 21.9, chargeDate })), ["merchant:apple:2190"], "2026-11-01")).toEqual([]);
   });
 
   it("does not auto-confirm a known service; one charge or three months stay a suggestion", () => {
@@ -252,9 +256,17 @@ describe("charge dates", () => {
       "item",
       "acc",
     );
-    expect(row?.chargeDate).toBe("2026-07-19");
+    expect(row?.chargeDate).toBe("2026-10-15");
     expect(JSON.stringify(row)).not.toContain("payeeMCC");
     expect(JSON.stringify(row)).not.toContain("creditCard");
+  });
+
+  it("uses the posting date for installments and stale purchase stamps", () => {
+    const stamp = { transactionDateTime: "2026-05-10T15:00:00Z" };
+    expect(chargeDateOf({ date: "2026-09-10T00:00:00.000Z", creditCardMetadata: { ...stamp, totalInstallments: 6, installmentNumber: 5 } })).toBe("2026-09-10");
+    expect(chargeDateOf({ date: "2026-05-10T00:00:00.000Z", creditCardMetadata: { ...stamp, totalInstallments: 6, installmentNumber: 1 } })).toBe("2026-05-10");
+    expect(chargeDateOf({ date: "2026-08-10T00:00:00.000Z", creditCardMetadata: stamp })).toBe("2026-08-10");
+    expect(chargeDateOf({ date: "2026-05-12T00:00:00.000Z", creditCardMetadata: stamp })).toBe("2026-05-10");
   });
 
   it.skip("22:30 America/Sao_Paulo pending confirmation", () => {

@@ -58,13 +58,23 @@ export function withinPercent(base: number, next: number, percent: number): bool
   return Math.abs(next - base) / Math.abs(base) <= percent + 1e-9;
 }
 
+/**
+ * The day the charge happened. A card purchase carries its own timestamp,
+ * but an installment repeats the original purchase timestamp on every
+ * month's line: those use the statement date, so each month counts.
+ */
 export function chargeDateOf(tx: {
   date: string;
-  creditCardMetadata?: { transactionDateTime?: string } | null;
+  creditCardMetadata?: { transactionDateTime?: string; installmentNumber?: number; totalInstallments?: number } | null;
 }): string {
-  const stamped = tx.creditCardMetadata?.transactionDateTime;
-  if (stamped) return saoPauloCivilDate(stamped);
-  return tx.date.slice(0, 10);
+  const posted = tx.date.slice(0, 10);
+  const meta = tx.creditCardMetadata;
+  const stamped = meta?.transactionDateTime;
+  if (!stamped) return posted;
+  if ((meta?.totalInstallments ?? 1) > 1) return posted;
+  const civil = saoPauloCivilDate(stamped);
+  if (Math.abs(diffDays(civil, posted)) > 20) return posted;
+  return civil;
 }
 
 export function merchantIgnoreToken(merchantKey: string): string {
@@ -397,6 +407,17 @@ function detectionFromCluster(txs: CandidateTx[], service: string | null, today:
   };
 }
 
+/** "APPLE.COM/BILL" and its spellings: the App Store, not one service. */
+export function isAppleBill(description: string): boolean {
+  const words = descriptorWords(description);
+  return (
+    hasPhrase(words, ["APPLE", "COM", "BILL"]) ||
+    words.includes("APPLECOMBILL") ||
+    hasPhrase(words, ["ITUNES", "COM", "BILL"]) ||
+    (words.length <= 2 && words[0] === "ITUNES")
+  );
+}
+
 /**
  * A merchant the user already confirmed. Its charges are recognized from the
  * statement text alone, even a single charge after a pause, with no catalog
@@ -425,6 +446,7 @@ export function detect(
   for (const merchant of known) for (const descriptor of merchant.descriptors) knownBy.set(descriptor, merchant);
   const usable = transactions.filter((tx) => {
     if (excludedKind(tx)) return false;
+    if (isAppleBill(tx.description)) return !merchants.has(`apple:${Math.round(tx.amount * 100)}`);
     const service = classifyDescriptor(tx.description);
     if (!service && isGenericDescriptor(tx.description)) return false;
     if (descriptors.has(normalizeDescriptor(tx.description))) return false;
@@ -433,6 +455,14 @@ export function detect(
 
   const groups = new Map<string, { service: string | null; known: KnownMerchant | null; txs: CandidateTx[] }>();
   for (const tx of usable) {
+    if (isAppleBill(tx.description)) {
+      // Each App Store subscription bills its own fixed price under the same text.
+      const key = `apple:${Math.round(tx.amount * 100)}`;
+      const group = groups.get(key) ?? { service: "apple", known: null, txs: [] };
+      group.txs.push(tx);
+      groups.set(key, group);
+      continue;
+    }
     const service = classifyDescriptor(tx.description);
     const mine = knownBy.get(merchantDescriptor(tx.description)) ?? null;
     const key = mine ? `known:${mine.merchantKey}` : (service ?? `raw:${merchantDescriptor(tx.description)}`);
@@ -442,10 +472,19 @@ export function detect(
   }
 
   const found: Detection[] = [];
-  for (const group of groups.values()) {
+  for (const [groupKey, group] of groups) {
     const clusters = clusterStable(group.txs)
       .map((cluster) => detectionFromCluster(cluster, group.service, today, Boolean(group.known)))
       .filter((item): item is Detection => item !== null);
+    if (group.service === "apple") {
+      const best = clusters.sort((a, b) => b.expectedChargeDate.localeCompare(a.expectedChargeDate))[0];
+      if (best) {
+        best.merchantKey = groupKey;
+        best.planName = "Assinatura via Apple";
+        found.push(best);
+      }
+      continue;
+    }
     if (group.known) {
       clusters.sort((a, b) => b.expectedChargeDate.localeCompare(a.expectedChargeDate));
       const best = clusters[0];

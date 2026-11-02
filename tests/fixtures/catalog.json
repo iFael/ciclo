@@ -434,7 +434,7 @@
     "plans": [
       {
         "name": "iFood Clube",
-        "brl": 9.9
+        "brl": 7.95
       }
     ],
     "patterns": [
@@ -451,6 +451,9 @@
       ],
       [
         "CLUBE",
+        "IFOOD"
+      ],
+      [
         "IFOOD"
       ]
     ],
