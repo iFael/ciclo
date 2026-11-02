@@ -1,8 +1,8 @@
 import { isForeignService } from "@/lib/catalog";
 import { chargeDateOf, classifyDescriptor } from "@/lib/matching";
 import { excludedKind } from "@/lib/noise";
-import type { Connection, ConnectionStatus } from "@/lib/types";
-import type { PluggyItem, PluggyTransaction } from "@/lib/pluggy/types";
+import type { Connection, ConnectionAccount, ConnectionStatus } from "@/lib/types";
+import type { PluggyAccount, PluggyItem, PluggyTransaction } from "@/lib/pluggy/types";
 import type { StoredTx } from "@/lib/types";
 
 export function mapItemStatus(item: PluggyItem, now: Date): { status: ConnectionStatus; errorCode: string | null } {
@@ -29,25 +29,81 @@ export function upsertConnectionFromItem(connections: Connection[], item: Pluggy
     lastErrorCode: mapped.errorCode,
     lastSyncHadData: current?.lastSyncHadData ?? false,
     lastDataThrough: current?.lastDataThrough ?? null,
+    accounts: current?.accounts ?? [],
   };
   return [...connections.filter((connection) => connection.itemId !== item.id), row];
 }
 
+/** MeuPluggy is one connector for many banks: one item per bank, all with the same connector. */
+export function isAggregator(institution: string | null | undefined): boolean {
+  return (institution ?? "").toLowerCase().replace(/\s+/g, "") === "meupluggy";
+}
+
+function retired(connection: Connection): boolean {
+  return connection.status === "replaced" || connection.status === "removed";
+}
+
+/** Same card or account seen on two items: same kind, same last digits, same name. */
+function accountKey(account: ConnectionAccount): string | null {
+  if (!account.last4) return null;
+  return `${account.kind}:${account.last4}:${(account.name ?? "").toLowerCase()}`;
+}
+
+function shareAccounts(a: Connection, b: Connection): boolean {
+  const keys = new Set((a.accounts ?? []).map(accountKey).filter((key): key is string => key !== null));
+  return (b.accounts ?? []).some((account) => {
+    const key = accountKey(account);
+    return key !== null && keys.has(key);
+  });
+}
+
+/**
+ * A new item for a bank replaces the old item of that bank. For a bank's own
+ * connector the connector says it. Through MeuPluggy every bank has the same
+ * connector, so the old item is replaced only when it holds the same cards.
+ */
 export function replaceSiblings(connections: Connection[], item: PluggyItem): Connection[] {
   const connectorId = item.connector?.id;
   if (!connectorId) return connections;
+  const fresh = connections.find((connection) => connection.itemId === item.id);
+  const aggregator = isAggregator(item.connector?.name);
+  if (aggregator && !(fresh?.accounts ?? []).length) return connections;
   return connections.map((connection) => {
     if (connection.itemId === item.id) return connection;
-    if (connection.connectorId === connectorId && connection.status !== "replaced") {
-      return { ...connection, status: "replaced" };
-    }
-    return connection;
+    if (connection.connectorId !== connectorId || retired(connection)) return connection;
+    if (aggregator && (!fresh || !shareAccounts(fresh, connection))) return connection;
+    return { ...connection, status: "replaced" };
   });
 }
 
 export function itemIdsForRun(connections: Connection[], seed?: string): string[] {
   if (connections.length === 0) return seed ? [seed] : [];
-  return connections.filter((connection) => connection.status !== "replaced").map((connection) => connection.itemId);
+  return connections.filter((connection) => !retired(connection)).map((connection) => connection.itemId);
+}
+
+const BRANDS: Record<string, string> = {
+  MASTERCARD: "Mastercard",
+  VISA: "Visa",
+  ELO: "Elo",
+  AMEX: "Amex",
+  AMERICAN_EXPRESS: "Amex",
+  HIPERCARD: "Hipercard",
+  DINERS: "Diners",
+};
+
+/** Keeps the name and the last four digits. The full number and the balance stay at Pluggy. */
+export function accountSummary(account: PluggyAccount): ConnectionAccount {
+  const card = account.type === "CREDIT" || account.subtype === "CREDIT_CARD";
+  const digits = (account.number ?? "").replace(/\D/g, "");
+  const rawBrand = account.creditData?.brand?.trim().toUpperCase() ?? "";
+  const name = (account.marketingName ?? account.name ?? "").trim();
+  return {
+    id: account.id,
+    kind: card ? "card" : "account",
+    name: name || null,
+    brand: rawBrand ? (BRANDS[rawBrand] ?? rawBrand.charAt(0) + rawBrand.slice(1).toLowerCase()) : null,
+    last4: card && digits.length >= 4 ? digits.slice(-4) : null,
+  };
 }
 
 /**

@@ -36,8 +36,16 @@ export const pluggyItemSchema = z.object({
 export const pluggyAccountSchema = z.object({
   id: pluggyIdSchema,
   type: optional(text),
+  subtype: optional(text),
   itemId: optional(text),
+  name: optional(text),
+  marketingName: optional(text),
+  /** Only the last four digits are kept, see `accountSummary`. */
+  number: optional(text),
+  creditData: z.object({ brand: optional(text), level: optional(text) }).nullish(),
 });
+
+export const pluggyConnectTokenSchema = z.object({ accessToken: z.string().min(1) });
 
 export const pluggyTransactionSchema = z.object({
   id: z.string().min(1),

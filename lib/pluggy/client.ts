@@ -4,6 +4,7 @@ import {
   parseRows,
   pluggyAccountSchema,
   pluggyAuthSchema,
+  pluggyConnectTokenSchema,
   pluggyItemSchema,
   pluggyPageSchema,
   pluggyTransactionSchema,
@@ -35,6 +36,10 @@ export type PluggySource = {
   getItem(id: string): Promise<PluggyItem>;
   getAccounts(itemId: string): Promise<PluggyAccount[]>;
   listTransactions(query: TransactionQuery): Promise<PluggyTransaction[]>;
+  /** A short-lived token for the Pluggy Connect widget. With `itemId`, the widget renews that item. */
+  createConnectToken?(itemId?: string): Promise<string>;
+  /** Ends the connection at Pluggy. A missing item counts as removed. */
+  deleteItem?(itemId: string): Promise<void>;
 };
 
 export class PluggyClient implements PluggySource {
@@ -73,6 +78,25 @@ export class PluggyClient implements PluggySource {
     const { rows, dropped } = parseRows(schema, page.results ?? []);
     if (dropped > 0) console.info(JSON.stringify(safeLog({ count: dropped, status: "dropped", errorCode: `pluggy_invalid_${what}` })));
     return { rows, next: page.next ?? null };
+  }
+
+  private async send(method: string, url: string, body?: unknown): Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }> {
+    const apiKey = await this.key();
+    const headers: Record<string, string> = { "X-API-KEY": apiKey };
+    if (body !== undefined) headers["Content-Type"] = "application/json";
+    return this.fetchImpl(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  }
+
+  async createConnectToken(itemId?: string): Promise<string> {
+    // No avoidDuplicates: every bank through MeuPluggy uses the same connector.
+    const response = await this.send("POST", `${API}/connect_token`, itemId ? { itemId } : {});
+    if (!response.ok) throw new Error(`pluggy_${response.status}`);
+    return parseOrThrow(pluggyConnectTokenSchema, await response.json(), "connect_token").accessToken;
+  }
+
+  async deleteItem(itemId: string): Promise<void> {
+    const response = await this.send("DELETE", `${API}/items/${encodeURIComponent(itemId)}`);
+    if (!response.ok && response.status !== 404) throw new Error(`pluggy_${response.status}`);
   }
 
   async getItem(id: string): Promise<PluggyItem> {

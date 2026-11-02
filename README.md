@@ -61,7 +61,11 @@ Cadastre:
 
 `https://ciclo-peach.vercel.app/api/webhooks/pluggy?token=SEU_PLUGGY_WEBHOOK_TOKEN`
 
-O mesmo token pode ir no header `x-webhook-token`. O corpo é só um aviso: a rota relê o item e as transações na API. O corpo e cada resposta da Pluggy passam pelos schemas Zod de `lib/pluggy/schemas.ts`: um aviso com formato inválido é ignorado com 200, uma transação inválida é descartada (o log só conta quantas) e um item ou página fora do formato falha com `pluggy_invalid_*`. Eventos repetidos ou fora de ordem não duplicam a conexão. `item/created` marca a conexão anterior da mesma instituição como `replaced`. `USER_AUTHORIZATION_EXPIRED` marca `expired`.
+O mesmo token pode ir no header `x-webhook-token`. O corpo é só um aviso: a rota relê o item e as transações na API. O corpo e cada resposta da Pluggy passam pelos schemas Zod de `lib/pluggy/schemas.ts`: um aviso com formato inválido é ignorado com 200, uma transação inválida é descartada (o log só conta quantas) e um item ou página fora do formato falha com `pluggy_invalid_*`. Eventos repetidos ou fora de ordem não duplicam a conexão. `item/created` marca a conexão anterior da mesma instituição como `replaced`. Pelo MeuPluggy todo banco tem o mesmo conector, então só troca quando o item novo tem os mesmos cartões (mesmo nome e final). `item/deleted` marca `removed`. `USER_AUTHORIZATION_EXPIRED` marca `expired`.
+
+## Conexões
+
+O menu ⋯ → Conexões lista cada banco com os cartões e contas que a Pluggy devolveu na última leitura (nome, bandeira e os 4 últimos dígitos, nada de saldo). **Conectar banco** abre o Pluggy Connect com um token de `/api/connections`; o item novo chega pelo webhook e a tela relê sozinha. **Renovar** abre o Connect no modo de atualização daquele item. **Remover** apaga o item na Pluggy e guarda a linha como `removed`, para o cron não ler de novo. A migration `20261102200000_connection_accounts.sql` precisa estar aplicada antes do deploy.
 
 ## GitHub
 

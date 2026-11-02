@@ -8,14 +8,45 @@ import { withLearned } from "@/lib/confidence";
 import { feedbackFrom, learnedAdjustment } from "@/lib/learning";
 import { classifyDescriptor, scoreStoredCharges } from "@/lib/matching";
 import { newestSyncedAt } from "@/lib/sync-policy";
-import type { AppState, Connection, ScreenBanner, ScreenModel, ServiceLogo, Subscription } from "@/lib/types";
+import { isAggregator } from "@/lib/pluggy/map";
+import type { AppState, Connection, ScreenBanner, ScreenConnection, ScreenModel, ServiceLogo, Subscription } from "@/lib/types";
 
 const STATUS_LABEL: Record<Connection["status"], string> = {
   active: "Ativa",
   expired: "Vencida",
   replaced: "Substituída",
   error: "Com erro",
+  removed: "Removida",
 };
+
+const KIND_LABEL = { card: "Cartão", account: "Conta" } as const;
+
+/** What the Conexões screen shows. Item ids stay on the server. */
+export function screenConnections(connections: Connection[]): ScreenConnection[] {
+  return connections
+    .filter((connection) => connection.status !== "replaced" && connection.status !== "removed")
+    .map((connection) => {
+      const aggregator = isAggregator(connection.institution);
+      const accounts = (connection.accounts ?? []).map((account) => {
+        const label = account.name ?? (account.brand ? `${KIND_LABEL[account.kind]} ${account.brand}` : KIND_LABEL[account.kind]);
+        const detail = [account.kind === "card" ? "Cartão de crédito" : "Conta", account.brand && account.name ? account.brand : null, account.last4 ? `final ${account.last4}` : null]
+          .filter(Boolean)
+          .join(" · ");
+        return { id: account.id, kind: account.kind, label, detail };
+      });
+      const title = aggregator ? (accounts[0]?.label ?? "Banco pelo MeuPluggy") : (connection.institution ?? "Banco");
+      return {
+        id: connection.id,
+        title,
+        via: aggregator ? "Pelo MeuPluggy" : null,
+        accounts,
+        status: connection.status as ScreenConnection["status"],
+        statusLabel: STATUS_LABEL[connection.status],
+        expiresLabel: connection.consentExpiresAt ? formatDayMonthYear(connection.consentExpiresAt.slice(0, 10)) : "Sem data de vencimento",
+        manageHref: aggregator ? "https://meu.pluggy.ai" : null,
+      };
+    });
+}
 
 function priceLabel(amount: number, approximate: boolean): string {
   return `${approximate ? "≈ " : ""}${formatBrl(amount)}/mês`;
@@ -270,13 +301,7 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
     syncedAt,
     firstRead,
     empty: !firstRead && cards.length === 0 && inactiveCards.length === 0 && suggestions.length === 0,
-    connections: state.connections.map((connection) => ({
-      institution: connection.institution ?? "Conexão",
-      statusLabel: STATUS_LABEL[connection.status],
-      expiresLabel: connection.consentExpiresAt
-        ? formatDayMonthYear(connection.consentExpiresAt.slice(0, 10))
-        : "Sem data de vencimento",
-    })),
+    connections: screenConnections(state.connections),
     appleChoices: choices,
   };
 }

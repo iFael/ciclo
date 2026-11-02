@@ -2,7 +2,7 @@ import { attachKnownCharges, dropShadowedSuggestions, mergeDetections, pruneSugg
 import { todayInSaoPaulo, transactionQueries, windowStart } from "@/lib/dates";
 import { ensureLogos } from "@/lib/logos/resolve";
 import { detect, knownMerchants } from "@/lib/matching";
-import { itemIdsForRun, mapPluggyTransaction, replaceSiblings, upsertConnectionFromItem } from "@/lib/pluggy/map";
+import { accountSummary, itemIdsForRun, mapPluggyTransaction, replaceSiblings, upsertConnectionFromItem } from "@/lib/pluggy/map";
 import type { PluggySource } from "@/lib/pluggy/client";
 import { safeLog } from "@/lib/security";
 import { dedupeStoredTransactions, storeLogoCache } from "@/lib/store";
@@ -53,6 +53,7 @@ function assertSingleDateParam(query: { dateFrom?: string; createdAtFrom?: strin
 
 async function pullTransactions(pluggy: PluggySource, connection: Connection, now: Date): Promise<StoredTx[]> {
   const accounts = await pluggy.getAccounts(connection.itemId);
+  connection.accounts = accounts.map(accountSummary);
   const today = todayInSaoPaulo(now);
   const rows: StoredTx[] = [];
   for (const account of accounts) {
@@ -80,6 +81,14 @@ export async function syncItem(deps: SyncDeps, itemId: string, event: string, de
   }
   const pluggy = deps.pluggy;
   const state = await runStep("load_failed", () => deps.store.load());
+  if (event === "item/deleted") {
+    const gone = state.connections.find((row) => row.itemId === itemId);
+    if (gone && gone.status !== "removed") {
+      gone.status = "removed";
+      await runStep("save_failed", () => deps.store.save(state));
+    }
+    return;
+  }
   const item = await runStep("item_failed", () => pluggy.getItem(itemId));
   const now = deps.now();
   let connections = upsertConnectionFromItem(state.connections, item, now);
@@ -138,6 +147,7 @@ export async function syncItem(deps: SyncDeps, itemId: string, event: string, de
   } catch (error) {
     throw asStep(error, "detect_failed");
   }
+  if (event === "item/created") state.connections = replaceSiblings(state.connections, item);
   const dates = fetched.map((row) => row.chargeDate).sort();
   connection.lastSyncedAt = now.toISOString();
   connection.lastSyncHadData = fetched.length > 0;

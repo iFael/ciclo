@@ -51,11 +51,7 @@ function model(
     firstRead: Boolean(extra.firstRead),
     empty: Boolean(extra.empty),
     connections: [
-      {
-        institution: "Banco teste",
-        statusLabel: "Ativa",
-        expiresLabel: "01/12/2026",
-      },
+      { id: "conn-1", title: "Mercado Pago", via: "Pelo MeuPluggy", accounts: [{ id: "acc-1", kind: "card", label: "Mercado Pago", detail: "Cartão de crédito · Mastercard · final 1234" }], status: "active", statusLabel: "Ativa", expiresLabel: "01/11/2027", manageHref: "https://meu.pluggy.ai" },
     ],
     appleChoices: [
       { id: "chatgpt", label: "ChatGPT" },
