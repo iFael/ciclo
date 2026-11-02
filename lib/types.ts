@@ -58,6 +58,9 @@ export type StoredTx = {
   description: string;
   chargeDate: string;
   foreignCharge: boolean;
+  type?: string | null;
+  category?: string | null;
+  operationType?: string | null;
 };
 
 export type ScreenAction = {
@@ -75,6 +78,23 @@ export type ScreenBanner = {
   actions: ScreenAction[];
 };
 
+export type ServiceLogo = {
+  merchantKey: string;
+  domain: string | null;
+  logoUrl: string | null;
+  sourceUrl: string | null;
+  source: "catalog" | "site" | "google" | "duckduckgo" | "fallback";
+  resolvedAt: string;
+  status: "ok" | "fallback";
+};
+
+export type ScreenCheck = {
+  id: string;
+  label: string;
+  detail: string;
+  passed: boolean;
+};
+
 export type ScreenCard = {
   id: string;
   service: string;
@@ -87,6 +107,8 @@ export type ScreenCard = {
   removeConfirm: string;
   autoConfirmed: boolean;
   notice: string | null;
+  logoUrl: string | null;
+  logoFallback: boolean;
 };
 
 export type ScreenSuggestion = {
@@ -96,6 +118,9 @@ export type ScreenSuggestion = {
   checked: boolean;
   priceLabel: string;
   apple: boolean;
+  logoUrl: string | null;
+  logoFallback: boolean;
+  confidence: { score: number; label: string; checks: ScreenCheck[] };
 };
 
 export type ScreenModel = {

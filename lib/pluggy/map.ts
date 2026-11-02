@@ -1,4 +1,6 @@
-import { chargeDateOf, classifyDescriptor, isIofRotativo } from "@/lib/matching";
+import { isForeignService } from "@/lib/catalog";
+import { chargeDateOf, classifyDescriptor } from "@/lib/matching";
+import { excludedKind } from "@/lib/noise";
 import type { Connection, ConnectionStatus } from "@/lib/types";
 import type { PluggyItem, PluggyTransaction } from "@/lib/pluggy/types";
 import type { StoredTx } from "@/lib/types";
@@ -50,9 +52,19 @@ export function itemIdsForRun(connections: Connection[], seed?: string): string[
 
 export function mapPluggyTransaction(tx: PluggyTransaction, itemId: string, accountId: string): StoredTx | null {
   const description = tx.description ?? "";
-  if (tx.amount <= 0 || isIofRotativo(description)) return null;
+  if (
+    excludedKind({
+      description,
+      amount: tx.amount,
+      type: tx.type,
+      category: tx.category,
+      operationType: tx.operationType,
+    })
+  ) {
+    return null;
+  }
   const service = classifyDescriptor(description);
-  const foreignCharge = Boolean(service) || Boolean(tx.currencyCode && tx.currencyCode !== "BRL");
+  const foreignCharge = Boolean(service && isForeignService(service)) || Boolean(tx.currencyCode && tx.currencyCode !== "BRL");
   return {
     id: tx.id,
     itemId,
@@ -61,5 +73,8 @@ export function mapPluggyTransaction(tx: PluggyTransaction, itemId: string, acco
     description,
     chargeDate: chargeDateOf(tx),
     foreignCharge,
+    type: tx.type ?? null,
+    category: tx.category ?? null,
+    operationType: tx.operationType ?? null,
   };
 }

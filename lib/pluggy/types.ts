@@ -21,6 +21,9 @@ export type PluggyTransaction = {
   date: string;
   accountId?: string;
   currencyCode?: string;
+  type?: string;
+  category?: string | null;
+  operationType?: string | null;
   creditCardMetadata?: { transactionDateTime?: string; payeeMCC?: number } | null;
 };
 

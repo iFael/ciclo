@@ -1,6 +1,7 @@
+import { latestChargeDate } from "@/lib/charges";
 import { isForeignService, planNameFor, serviceInfo } from "@/lib/catalog";
 import { formatBrl } from "@/lib/format";
-import { normalizeDescriptor, withinTolerance } from "@/lib/matching";
+import { merchantIgnoreToken, normalizeDescriptor, withinPercent, type Detection } from "@/lib/matching";
 import type { AppState, Subscription, SubscriptionStatus } from "@/lib/types";
 
 export type PlanAction =
@@ -12,7 +13,8 @@ export type PlanAction =
   | { action: "still-paying"; id: string }
   | { action: "cancelled"; id: string }
   | { action: "restore-charging"; id: string }
-  | { action: "ignore-charging"; id: string };
+  | { action: "ignore-charging"; id: string }
+  | { action: "set-domain"; id: string; domain: string };
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -40,10 +42,8 @@ export function applyAction(input: AppState, command: PlanAction, now: Date): Ap
   if (command.action === "ignore" && subscription.status === "suggested") {
     subscription.status = "ignored";
     subscription.undoStatus = null;
-    for (const descriptor of subscription.descriptors) {
-      const normalized = normalizeDescriptor(descriptor);
-      if (!state.ignoredDescriptors.includes(normalized)) state.ignoredDescriptors.push(normalized);
-    }
+    const token = merchantIgnoreToken(subscription.merchantKey);
+    if (!state.ignoredDescriptors.includes(token)) state.ignoredDescriptors.push(token);
     return state;
   }
 
@@ -108,7 +108,8 @@ export function applyAction(input: AppState, command: PlanAction, now: Date): Ap
   }
 
   if (command.action === "still-paying") {
-    subscription.cancelPromptSnoozeDate = subscription.expectedChargeDate;
+    const last = latestChargeDate(state, subscription.id) ?? subscription.expectedChargeDate;
+    subscription.cancelPromptSnoozeDate = last;
     return state;
   }
 
@@ -124,6 +125,8 @@ export function applyAction(input: AppState, command: PlanAction, now: Date): Ap
     }
     if (command.action === "ignore-charging") {
       subscription.status = "ignored";
+      const token = merchantIgnoreToken(subscription.merchantKey);
+      if (!state.ignoredDescriptors.includes(token)) state.ignoredDescriptors.push(token);
       for (const descriptor of subscription.descriptors) {
         const normalized = normalizeDescriptor(descriptor);
         if (!state.ignoredDescriptors.includes(normalized)) state.ignoredDescriptors.push(normalized);
@@ -197,8 +200,7 @@ export function mergeDetections(
       }
     }
     if (existing.status === "dismissed") continue;
-    const foreign = existing.approximate || detection.approximate;
-    if (!withinTolerance(existing.amount, detection.amount, foreign)) {
+    if (!withinPercent(existing.amount, detection.amount, 0.15)) {
       existing.planChangeNotice = `O valor passou de ${formatBrl(existing.amount)} para ${formatBrl(detection.amount)}.`;
     } else if (detection.planChangeNotice) {
       existing.planChangeNotice = detection.planChangeNotice;
@@ -230,5 +232,20 @@ export function mergeDetections(
       existing.suggestionLabel = detection.suggestionLabel;
     }
   }
+  return state;
+}
+
+/** Drop suggested rows the current history no longer supports. Confirmed and ignored stay. */
+export function pruneSuggestions(input: AppState, detections: Detection[]): AppState {
+  const keys = new Set(detections.map((detection) => detection.merchantKey));
+  const state = clone(input);
+  const removed = new Set<string>();
+  state.subscriptions = state.subscriptions.filter((subscription) => {
+    if (subscription.status !== "suggested" || subscription.suppressAutoConfirm) return true;
+    if (keys.has(subscription.merchantKey)) return true;
+    removed.add(subscription.id);
+    return false;
+  });
+  if (removed.size > 0) state.charges = state.charges.filter((charge) => !removed.has(charge.subscriptionId));
   return state;
 }

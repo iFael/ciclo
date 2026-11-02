@@ -1,7 +1,9 @@
+import { cadenceOf, chargeDates, isStaleCharge, lastChargeLabel } from "@/lib/charges";
 import { APPLE_CHOICES, serviceInfo } from "@/lib/catalog";
 import { diffDays, todayInSaoPaulo } from "@/lib/dates";
-import { daysPhrase, formatBrl, formatDayMonth, formatDayMonthYear, lastSyncAgeHours, round2 } from "@/lib/format";
-import type { AppState, Connection, ScreenBanner, ScreenModel, Subscription } from "@/lib/types";
+import { formatBrl, formatDayMonth, formatDayMonthYear, lastSyncAgeHours, round2 } from "@/lib/format";
+import { scoreStoredCharges } from "@/lib/matching";
+import type { AppState, Connection, ScreenBanner, ScreenModel, ServiceLogo, Subscription } from "@/lib/types";
 
 const STATUS_LABEL: Record<Connection["status"], string> = {
   active: "Ativa",
@@ -20,10 +22,6 @@ function priceLabel(amount: number, approximate: boolean): string {
   return `${approximate ? "≈ " : ""}${formatBrl(amount)}/mês`;
 }
 
-function nextChargeLabel(date: string, today: string): string {
-  return `Próxima cobrança: ${formatDayMonth(date)}, ${daysPhrase(diffDays(today, date))}`;
-}
-
 function companyOf(subscription: Subscription): string {
   return serviceInfo(subscription.service)?.company ?? "o provedor";
 }
@@ -35,20 +33,40 @@ export function confirmedMonthlyTotal(state: AppState): number {
   return round2(total);
 }
 
+function anchorDate(subscription: Subscription, state: AppState, today: string): string | null {
+  const last = chargeDates(state, subscription.id).at(-1) ?? null;
+  if (last) return last;
+  if (subscription.expectedChargeDate && diffDays(subscription.expectedChargeDate, today) >= 0) return subscription.expectedChargeDate;
+  return null;
+}
+
+function logoOf(subscription: Subscription, logos?: Map<string, ServiceLogo>): { logoUrl: string | null; logoFallback: boolean } {
+  const hit = logos?.get(subscription.merchantKey);
+  if (hit) {
+    if (hit.status === "ok" && hit.logoUrl) return { logoUrl: hit.logoUrl, logoFallback: false };
+    return { logoUrl: null, logoFallback: true };
+  }
+  const info = serviceInfo(subscription.service);
+  if (info?.logo && subscription.service !== "unknown") return { logoUrl: info.logo, logoFallback: false };
+  return { logoUrl: null, logoFallback: true };
+}
+
 function cancelBanner(subscription: Subscription, state: AppState, today: string): ScreenBanner | null {
-  if (subscription.status !== "confirmed" || !subscription.expectedChargeDate) return null;
-  if (subscription.cancelPromptSnoozeDate === subscription.expectedChargeDate) return null;
-  if (diffDays(subscription.expectedChargeDate, today) < 7) return null;
-  const paid = state.charges.some(
-    (charge) => charge.subscriptionId === subscription.id && charge.chargeDate >= subscription.expectedChargeDate!,
-  );
-  if (paid) return null;
+  if (subscription.status !== "confirmed") return null;
+  const last = anchorDate(subscription, state, today);
+  if (!last) return null;
+  if (subscription.cancelPromptSnoozeDate === last) return null;
+  const dates = chargeDates(state, subscription.id);
+  const cadence = cadenceOf(dates.length ? dates : [last]);
+  if (!isStaleCharge(last, today, cadence)) return null;
+  const newer = state.charges.some((charge) => charge.subscriptionId === subscription.id && charge.chargeDate > last);
+  if (newer) return null;
   const active = state.connections.some(
     (connection) =>
       connection.status === "active" &&
       connection.lastSyncHadData &&
       connection.lastDataThrough !== null &&
-      connection.lastDataThrough > subscription.expectedChargeDate!,
+      connection.lastDataThrough > last,
   );
   if (!active) return null;
   return {
@@ -62,7 +80,7 @@ function cancelBanner(subscription: Subscription, state: AppState, today: string
   };
 }
 
-export function buildScreen(state: AppState, now = new Date()): ScreenModel {
+export function buildScreen(state: AppState, now = new Date(), logos?: Map<string, ServiceLogo>): ScreenModel {
   const today = todayInSaoPaulo(now);
   const syncedAt = newestSync(state.connections);
   const age = lastSyncAgeHours(syncedAt, now);
@@ -72,21 +90,25 @@ export function buildScreen(state: AppState, now = new Date()): ScreenModel {
     .map((subscription) => {
       const info = serviceInfo(subscription.service);
       const company = companyOf(subscription);
+      const dates = chargeDates(state, subscription.id);
+      const last = anchorDate(subscription, state, today);
+      const cadence = cadenceOf(dates.length ? dates : last ? [last] : []);
+      const logo = logoOf(subscription, logos);
       return {
         id: subscription.id,
         service: subscription.service,
         planName: subscription.planName,
         company,
         priceLabel: priceLabel(subscription.amount, subscription.approximate),
-        nextChargeLabel: subscription.expectedChargeDate
-          ? nextChargeLabel(subscription.expectedChargeDate, today)
-          : "Próxima cobrança: sem data",
+        nextChargeLabel: lastChargeLabel(last, today, cadence),
         manageUrl: info?.manageUrl ?? null,
         manageLabel: info ? `Gerenciar ${subscription.planName} no site da ${company}, abre em nova aba` : "",
         removeConfirm: `Isso não cancela sua assinatura na ${company}. Para parar de pagar, use Gerenciar.`,
         autoConfirmed: subscription.autoConfirmed,
         notice: subscription.planChangeNotice,
-        sortDate: subscription.expectedChargeDate ?? "9999-99-99",
+        logoUrl: logo.logoUrl,
+        logoFallback: logo.logoFallback,
+        sortDate: last ?? "9999-99-99",
       };
     })
     .sort((a, b) => a.sortDate.localeCompare(b.sortDate))
@@ -94,14 +116,41 @@ export function buildScreen(state: AppState, now = new Date()): ScreenModel {
 
   const suggestions = state.subscriptions
     .filter((subscription) => subscription.status === "suggested")
-    .map((subscription) => ({
-      id: subscription.id,
-      planName: subscription.planName,
-      label: subscription.suggestionLabel,
-      checked: subscription.checked,
-      priceLabel: priceLabel(subscription.amount, subscription.approximate),
-      apple: subscription.service === "apple",
-    }));
+    .map((subscription) => {
+      const charges = state.charges
+        .filter((charge) => charge.subscriptionId === subscription.id)
+        .map((charge) => ({ chargeDate: charge.chargeDate, amount: charge.amount }));
+      const confidence = scoreStoredCharges({
+        charges,
+        today,
+        service: subscription.service,
+        planName: subscription.planName,
+      });
+      const logo = logoOf(subscription, logos);
+      return {
+        id: subscription.id,
+        planName: subscription.planName,
+        label: subscription.suggestionLabel,
+        checked: subscription.checked,
+        priceLabel: priceLabel(subscription.amount, subscription.approximate),
+        apple: subscription.service === "apple",
+        logoUrl: logo.logoUrl,
+        logoFallback: logo.logoFallback,
+        confidence: {
+          score: confidence.score,
+          label: confidence.label,
+          checks: confidence.checks.map((check) => ({
+            id: check.id,
+            label: check.label,
+            detail: check.detail,
+            passed: check.passed,
+          })),
+        },
+        sortScore: confidence.score,
+      };
+    })
+    .sort((a, b) => b.sortScore - a.sortScore || a.planName.localeCompare(b.planName, "pt-BR"))
+    .map(({ sortScore: _sortScore, ...suggestion }) => suggestion);
 
   const banners: ScreenBanner[] = [];
   for (const connection of state.connections) {

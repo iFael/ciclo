@@ -1,4 +1,4 @@
-import type { AppState, StoredTx } from "@/lib/types";
+import type { AppState, ServiceLogo, StoredTx } from "@/lib/types";
 
 export interface Store {
   load(): Promise<AppState>;
@@ -10,6 +10,18 @@ export interface Store {
   sentReminderKeys(): Promise<string[]>;
   markReminder(key: string, kind: string): Promise<boolean>;
   wipe(): Promise<void>;
+  getServiceLogo(merchantKey: string): Promise<ServiceLogo | null>;
+  saveServiceLogo(record: ServiceLogo): Promise<void>;
+}
+
+export function storeLogoCache(store: Store): {
+  get(merchantKey: string): Promise<ServiceLogo | null>;
+  put(record: ServiceLogo): Promise<void>;
+} {
+  return {
+    get: (merchantKey) => store.getServiceLogo(merchantKey),
+    put: (record) => store.saveServiceLogo(record),
+  };
 }
 
 export function emptyState(): AppState {

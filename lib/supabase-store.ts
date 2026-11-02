@@ -1,7 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { ConfigError } from "@/lib/security";
 import { emptyState, type Store } from "@/lib/store";
-import type { AppState, Charge, Connection, StoredTx, Subscription, SubscriptionStatus } from "@/lib/types";
+import type { AppState, Charge, Connection, ServiceLogo, StoredTx, Subscription, SubscriptionStatus } from "@/lib/types";
+
+const logoMemory = new Map<string, ServiceLogo>();
 
 function admin(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -120,6 +122,38 @@ export function createSupabaseStore(): Store {
       await deleteAll(client, "reminders_sent", "reminder_key");
       await deleteAll(client, "ignored_descriptors", "descriptor");
       await deleteAll(client, "connections", "id");
+      logoMemory.clear();
+    },
+    async getServiceLogo(merchantKey) {
+      const cached = logoMemory.get(merchantKey);
+      try {
+        const client = admin();
+        const { data, error } = await client.from("service_logos").select("*").eq("merchant_key", merchantKey).maybeSingle();
+        if (error || !data) return cached ?? null;
+        const record = mapLogo(data as Record<string, unknown>);
+        logoMemory.set(merchantKey, record);
+        return record;
+      } catch {
+        return cached ?? null;
+      }
+    },
+    async saveServiceLogo(record) {
+      logoMemory.set(record.merchantKey, record);
+      try {
+        const client = admin();
+        const { error } = await client.from("service_logos").upsert({
+          merchant_key: record.merchantKey,
+          domain: record.domain,
+          logo_url: record.logoUrl,
+          source_url: record.sourceUrl,
+          source: record.source,
+          resolved_at: record.resolvedAt,
+          status: record.status,
+        });
+        if (error) return;
+      } catch {
+        /* table may not exist until the migration is applied */
+      }
     },
   };
 }
@@ -203,6 +237,23 @@ function mapTx(row: Record<string, unknown>): StoredTx {
     description: String(row.description),
     chargeDate: String(row.charge_date),
     foreignCharge: Boolean(row.foreign_charge),
+    type: row.tx_type ? String(row.tx_type) : null,
+    category: row.category ? String(row.category) : null,
+    operationType: row.operation_type ? String(row.operation_type) : null,
+  };
+}
+
+function mapLogo(row: Record<string, unknown>): ServiceLogo {
+  const source = String(row.source ?? "fallback");
+  const allowed = new Set(["catalog", "site", "google", "duckduckgo", "fallback"]);
+  return {
+    merchantKey: String(row.merchant_key),
+    domain: row.domain ? String(row.domain) : null,
+    logoUrl: row.logo_url ? String(row.logo_url) : null,
+    sourceUrl: row.source_url ? String(row.source_url) : null,
+    source: (allowed.has(source) ? source : "fallback") as ServiceLogo["source"],
+    resolvedAt: row.resolved_at ? String(row.resolved_at) : new Date(0).toISOString(),
+    status: row.status === "ok" ? "ok" : "fallback",
   };
 }
 

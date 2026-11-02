@@ -5,6 +5,8 @@ import { Brand, CycleMark } from "@/components/brand";
 
 type Action = { id: string; label: string; href?: string; action?: string; targetId?: string };
 type Banner = { id: string; tone: "red" | "yellow" | "neutral"; text: string; actions: Action[] };
+type Check = { id: string; label: string; detail: string; passed: boolean };
+type Confidence = { score: number; label: string; checks: Check[] };
 type Card = {
   id: string;
   service: string;
@@ -16,8 +18,20 @@ type Card = {
   removeConfirm: string;
   autoConfirmed: boolean;
   notice: string | null;
+  logoUrl?: string | null;
+  logoFallback?: boolean;
 };
-type Suggestion = { id: string; planName: string; label: string | null; checked: boolean; priceLabel: string; apple: boolean };
+type Suggestion = {
+  id: string;
+  planName: string;
+  label: string | null;
+  checked: boolean;
+  priceLabel: string;
+  apple: boolean;
+  logoUrl?: string | null;
+  logoFallback?: boolean;
+  confidence?: Confidence | null;
+};
 
 const UNDO_TOAST_MS = 5000;
 
@@ -79,11 +93,11 @@ export function PlansScreen() {
     return () => window.clearTimeout(timer);
   }, [toastId]);
 
-  async function act(action: string, id: string, service?: string): Promise<boolean> {
+  async function act(action: string, id: string, service?: string, domain?: string): Promise<boolean> {
     const response = await fetch("/api/plans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, id, service }),
+      body: JSON.stringify({ action, id, service, domain }),
     });
     if (!response.ok) {
       setError(true);
@@ -188,16 +202,15 @@ export function PlansScreen() {
                     {model.suggestions.map((suggestion) => (
                       <article key={suggestion.id} className="suggestion" data-testid="suggestion">
                         <div className="card-head">
-                          <span className="mono" aria-hidden="true">
-                            {suggestion.planName.slice(0, 1).toUpperCase()}
-                          </span>
+                          <ServiceMark src={suggestion.logoUrl} name={suggestion.planName} fallback={suggestion.logoFallback === true || !suggestion.logoUrl} />
                           <div>
                             <h2 className="plan-name">{suggestion.planName}</h2>
-                            {suggestion.label && <p className="hint">{suggestion.label}</p>}
+                            {!suggestion.confidence && suggestion.label && <p className="hint">{suggestion.label}</p>}
                           </div>
                         </div>
                         <p className="price">{suggestion.priceLabel}</p>
-                        {suggestion.checked && <p className="hint">Sugestão marcada</p>}
+                        {!suggestion.confidence && suggestion.checked && <p className="hint">Sugestão marcada</p>}
+                        {suggestion.confidence && <ConfidenceBar confidence={suggestion.confidence} />}
                         {suggestion.apple && (
                           <label className="field">
                             Serviço
@@ -253,7 +266,11 @@ export function PlansScreen() {
               {model.cards.map((card) => (
                 <article key={card.id} className="card" data-testid="plan-card">
                   <div className="card-head">
-                    <Logo service={card.service} name={card.planName} />
+                    <ServiceMark
+                      src={card.logoUrl === undefined ? `/logos/${card.service}.svg` : card.logoUrl}
+                      name={card.planName}
+                      fallback={card.logoFallback === true}
+                    />
                     <h2 className="plan-name" data-testid="plan-name">
                       {card.planName}
                     </h2>
@@ -264,6 +281,18 @@ export function PlansScreen() {
                   <p className="when" data-testid="next-charge">
                     {card.nextChargeLabel}
                   </p>
+                  {card.logoFallback && (
+                    <form
+                      className="site-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const domain = String(new FormData(event.currentTarget).get("domain") ?? "");
+                        void act("set-domain", card.id, undefined, domain);
+                      }}
+                    >
+                      <input name="domain" aria-label="Site do serviço" placeholder="Site do serviço" />
+                    </form>
+                  )}
                   {card.notice && <p className="hint">{card.notice}</p>}
                   <div className="row">
                     {card.manageUrl && (
@@ -387,16 +416,47 @@ export function PlansScreen() {
   );
 }
 
-function Logo({ service, name }: { service: string; name: string }) {
-  const [ok, setOk] = useState(true);
-  if (!ok) {
+function ServiceMark({ src, name, fallback }: { src?: string | null; name: string; fallback?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  if (fallback || !src || failed) {
     return (
       <span className="mono" aria-hidden="true">
         {name.slice(0, 1).toUpperCase()}
       </span>
     );
   }
-  return <img className="logo" src={`/logos/${service}.svg`} alt="" onError={() => setOk(false)} />;
+  return <img className="logo" src={src} alt="" onError={() => setFailed(true)} />;
+}
+
+function ConfidenceBar({ confidence }: { confidence: Confidence }) {
+  return (
+    <div className="confidence" data-testid="confidence">
+      <div className="confidence-head">
+        <span>{confidence.label}</span>
+        <span>{confidence.score}%</span>
+      </div>
+      <div
+        className="confidence-track"
+        role="meter"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={confidence.score}
+        aria-label={`${confidence.label}, ${confidence.score}%`}
+      >
+        <div className="confidence-fill" style={{ width: `${confidence.score}%` }} />
+      </div>
+      <ul className="checks">
+        {confidence.checks.map((check) => (
+          <li key={check.id} className={check.passed ? "check on" : "check off"} title={check.label}>
+            <span className="check-mark" aria-hidden="true">
+              {check.passed ? "✓" : "–"}
+            </span>
+            <span>{check.detail}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function MenuIcon() {

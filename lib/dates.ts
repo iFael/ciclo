@@ -1,3 +1,5 @@
+import { HISTORY_MONTHS } from "@/lib/rules";
+
 const DAY = 24 * 60 * 60 * 1000;
 
 export function parseCivil(iso: string): Date {
@@ -55,9 +57,8 @@ export function monthKey(iso: string): string {
   return iso.slice(0, 7);
 }
 
-export function windowStart(today: string, firstSync: boolean): string {
-  if (firstSync) return addMonthsClamp(today, -12);
-  return addDays(today, -100);
+export function windowStart(today: string, _firstSync: boolean): string {
+  return addMonthsClamp(today, -HISTORY_MONTHS);
 }
 
 export type TransactionQuery = {
@@ -72,7 +73,7 @@ export function transactionQueries(input: {
   today: string;
 }): TransactionQuery[] {
   if (!input.lastSyncedAt) {
-    return [{ accountId: input.accountId, dateFrom: addMonthsClamp(input.today, -12) }];
+    return [{ accountId: input.accountId, dateFrom: addMonthsClamp(input.today, -HISTORY_MONTHS) }];
   }
   const created = new Date(input.lastSyncedAt);
   created.setTime(created.getTime() - DAY);
