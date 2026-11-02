@@ -33,6 +33,8 @@ export type Subscription = {
   cancelPromptSnoozeDate: string | null;
   descriptors: string[];
   suggestionLabel: string | null;
+  /** Link the user set for the Gerenciar button. Wins over the catalog and the store. */
+  manageUrl?: string | null;
 };
 
 export type Charge = {
@@ -110,6 +112,8 @@ export type ScreenCard = {
   /** Visible text: "Gerenciar na Apple", "Gerenciar no Google Play" or "Gerenciar no site". */
   manageButton: string;
   manageLabel: string;
+  /** True when the link came from the user, not the catalog. */
+  customManageUrl: boolean;
   removeConfirm: string;
   autoConfirmed: boolean;
   notice: string | null;

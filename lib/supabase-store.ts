@@ -222,6 +222,7 @@ function mapSubscription(row: Record<string, unknown>): Subscription {
     cancelPromptSnoozeDate: row.cancel_prompt_snooze_date ? String(row.cancel_prompt_snooze_date) : null,
     descriptors: Array.isArray(row.descriptors) ? row.descriptors.map(String) : [],
     suggestionLabel: row.suggestion_label ? String(row.suggestion_label) : null,
+    manageUrl: typeof row.manage_url === "string" && row.manage_url ? row.manage_url : null,
   };
 }
 
@@ -300,6 +301,7 @@ function subscriptionRow(row: Subscription): Record<string, unknown> {
     cancel_prompt_snooze_date: row.cancelPromptSnoozeDate,
     descriptors: row.descriptors,
     suggestion_label: row.suggestionLabel,
+    manage_url: row.manageUrl ?? null,
     updated_at: new Date().toISOString(),
   };
 }

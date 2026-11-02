@@ -117,9 +117,12 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
         priceLabel: priceLabel(subscription.amount, subscription.approximate),
         nextChargeLabel: lastChargeLabel(last, today, cadence),
         channel,
-        manageUrl: store ? store.manageUrl : info?.manageUrl || null,
-        manageButton: store ? store.button : "Gerenciar no site",
-        manageLabel: store
+        manageUrl: subscription.manageUrl || (store ? store.manageUrl : info?.manageUrl || null),
+        customManageUrl: Boolean(subscription.manageUrl),
+        manageButton: store && !subscription.manageUrl ? store.button : "Gerenciar no site",
+        manageLabel: subscription.manageUrl
+          ? `Gerenciar ${subscription.planName} no link que você escolheu, abre em nova aba`
+          : store
           ? `Gerenciar ${subscription.planName} ${channel === "apple" ? "na Apple" : "no Google Play"}, abre em nova aba`
           : info
             ? `Gerenciar ${subscription.planName} no site da ${company}, abre em nova aba`

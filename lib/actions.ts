@@ -15,7 +15,21 @@ export type PlanAction =
   | { action: "cancelled"; id: string }
   | { action: "restore-charging"; id: string }
   | { action: "ignore-charging"; id: string }
-  | { action: "set-domain"; id: string; domain: string };
+  | { action: "set-domain"; id: string; domain: string }
+  | { action: "set-manage-url"; id: string; url: string };
+
+/** A web link the Gerenciar button may open: https only, no credentials. Empty clears it. */
+export function cleanManageUrl(input: string): string | null | undefined {
+  const raw = input.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`);
+    if (url.protocol !== "https:" || url.username || url.password || !url.hostname.includes(".")) return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -111,6 +125,12 @@ export function applyAction(input: AppState, command: PlanAction, now: Date): Ap
       subscription.undoStatus = null;
       subscription.suggestionLabel = "Pode ser recorrente";
     }
+    return state;
+  }
+
+  if (command.action === "set-manage-url") {
+    const url = cleanManageUrl(command.url ?? "");
+    if (url !== undefined) subscription.manageUrl = url;
     return state;
   }
 
