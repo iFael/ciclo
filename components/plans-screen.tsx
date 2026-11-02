@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
-import { Check, CircleHelp, ExternalLink, LogOut, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
+import { Check, CircleHelp, ExternalLink, LogOut, Mail, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { Brand, CycleMark, LoadingScreen } from "@/components/brand";
 import { StatementSearch } from "@/components/statement-search";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -198,6 +198,21 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   const [appleService, setAppleService] = useState<Record<string, string>>({});
   const [syncing, setSyncing] = useState(false);
   const [syncToast, setSyncToast] = useState<{ title: string; detail?: string } | null>(null);
+  const [sendingSummary, setSendingSummary] = useState(false);
+  const sendSummary = async () => {
+    setSendingSummary(true);
+    setSyncError(null);
+    try {
+      const response = await fetch("/api/summary", { method: "POST" });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      if (response.ok) setSyncToast({ title: "Resumo enviado", detail: "Confira no seu e-mail." });
+      else setSyncError(body.error ?? "Não foi possível enviar o e-mail agora.");
+    } catch {
+      setSyncError("Não foi possível enviar o e-mail agora.");
+    } finally {
+      setSendingSummary(false);
+    }
+  };
   const [syncError, setSyncError] = useState<string | null>(null);
   const [editingLogo, setEditingLogo] = useState<string | null>(null);
   const [touring, setTouring] = useState(false);
@@ -420,7 +435,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
     tourSteps.push({
       id: "menu",
       title: "Mais opções",
-      body: "Aqui você sincroniza o cartão, vê as conexões e pode rever este tutorial quando quiser.",
+      body: "Aqui você sincroniza o cartão, recebe o resumo por e-mail, vê as conexões e pode rever este tutorial quando quiser.",
       target: '[data-testid="menu"]',
     });
   }
@@ -547,6 +562,10 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                     {syncing ? "Sincronizando…" : model.footer}
                   </p>
                 )}
+                <DropdownMenuItem data-testid="menu-summary" disabled={sendingSummary} onSelect={sendSummary}>
+                  <Mail />
+                  Enviar resumo por e-mail
+                </DropdownMenuItem>
                 <DropdownMenuItem data-testid="menu-connections" onSelect={() => setConnections(true)}>
                   <Plug />
                   Conexões
