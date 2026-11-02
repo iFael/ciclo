@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
-import { Check, CircleHelp, ExternalLink, LogOut, Mail, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
+import { Check, CircleHelp, ExternalLink, Link2, LogOut, Mail, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { Brand, CycleMark, LoadingScreen } from "@/components/brand";
 import { ConnectionsDialog } from "@/components/connections-dialog";
 import { StatementSearch } from "@/components/statement-search";
@@ -742,7 +742,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                         className={cn(
                           "rise",
                           desktop
-                            ? "grid grid-cols-[44px_minmax(0,1fr)_auto_auto] items-center gap-x-4 border-b px-5 py-[18px] transition-colors last:border-b-0 hover:bg-accent/30"
+                            ? "grid grid-cols-[44px_minmax(0,1fr)_120px_106px_36px] items-center gap-x-2 border-b px-4 py-[18px] transition-colors last:border-b-0 hover:bg-accent/30 xl:grid-cols-[44px_minmax(0,1fr)_160px_116px_36px] 2xl:grid-cols-[44px_minmax(0,1fr)_176px_132px_36px] 2xl:gap-x-3"
                             : "pressable lift min-w-0 rounded-[18px] border bg-card p-4",
                         )}
                       >
@@ -774,41 +774,43 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                               {card.nextChargeLabel}
                             </p>
                           </div>
-                          <p data-testid="plan-price" className="shrink-0 text-right text-base font-semibold lg:text-[17px]">
+                          <p data-testid="plan-price" className={cn("shrink-0 text-right text-base font-semibold lg:text-[17px]", desktop && "col-start-4 row-start-1 min-w-0 border-l border-border/70 pl-2 tabular-nums xl:pl-3")}>
                             <PerMonth label={card.priceLabel} stacked />
                           </p>
                         </div>
-                        <div className={cn("flex gap-2", desktop ? "items-center gap-1.5" : "mt-4")}>
+                        <div className={cn("flex gap-2", desktop ? "col-start-3 row-start-1 min-w-0 flex-col items-stretch gap-1" : "mt-4")}>
                           {card.manageUrl ? (
-                            <Button asChild className={desktop ? "h-[38px] px-4" : "h-[42px] flex-1"}>
+                            <Button asChild className={desktop ? "h-[38px] w-full min-w-0 gap-1.5 px-2 text-xs" : "h-[42px] flex-1"}>
                               <a data-testid="manage" href={card.manageUrl} target="_blank" rel="noopener noreferrer" aria-label={card.manageLabel}>
-                                {card.manageButton ?? "Gerenciar"}
+                                <span className="truncate">{card.manageButton ?? "Gerenciar"}</span>
                                 <ExternalLink className="size-3.5" />
                               </a>
                             </Button>
                           ) : (
-                            <Button variant="outline" data-testid="add-manage-link" className={desktop ? "h-[38px] px-4" : "h-[42px] flex-1"} onClick={() => setEditingLogo(card.id)}>
-                              Adicionar link
+                            <Button variant="outline" data-testid="add-manage-link" className={desktop ? "h-[38px] w-full min-w-0 gap-1.5 border-border/70 px-2 text-xs text-muted-foreground hover:text-foreground" : "h-[42px] flex-1"} onClick={() => setEditingLogo(card.id)}>
+                              <Link2 className="size-3.5" aria-hidden="true" />
+                              <span className="truncate">Adicionar link</span>
                             </Button>
                           )}
-                          {desktop ? (
-                            <Button variant="ghost" size="icon-sm" data-testid="remove" title="Remover do Ciclo" onClick={() => setPending(card)}>
-                              <Trash2 aria-hidden="true" />
-                              <span className="sr-only">Remover</span>
-                            </Button>
-                          ) : (
+                          {!desktop && (
                             <Button variant="outline" className="h-[42px] flex-1" data-testid="remove" onClick={() => setPending(card)}>
                               Remover
                             </Button>
                           )}
                           {card.autoConfirmed && (
-                            <Button variant="ghost" className={desktop ? "h-[38px]" : "h-[42px]"} data-testid="undo-auto" onClick={() => act("undo", card.id)}>
+                            <Button variant="ghost" className={desktop ? "h-7 text-xs" : "h-[42px]"} data-testid="undo-auto" onClick={() => act("undo", card.id)}>
                               Desfazer
                             </Button>
                           )}
                         </div>
+                        {desktop && (
+                          <Button variant="ghost" size="icon-sm" className="col-start-5 row-start-1" data-testid="remove" title="Remover do Ciclo" onClick={() => setPending(card)}>
+                            <Trash2 aria-hidden="true" />
+                            <span className="sr-only">Remover</span>
+                          </Button>
+                        )}
                         {(card.logoFallback || card.notice || editingLogo === card.id) && (
-                          <div className={cn("space-y-2", desktop ? "col-span-3 col-start-2 mt-3" : "mt-3")}>
+                          <div className={cn("space-y-2", desktop ? "col-span-4 col-start-2 mt-3" : "mt-3")}>
                             {editingLogo === card.id ? (
                               <form
                                 data-testid="plan-edit-form"

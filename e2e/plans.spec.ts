@@ -759,3 +759,37 @@ test("sem link mostra Adicionar link e abre o campo de edição", async ({ page 
   await expect(page.getByTestId("plan-edit-form")).toBeVisible();
   await expect(page.getByTestId("manage-url-input")).toBeVisible();
 });
+
+test("alinha preços e ações com e sem link no desktop, sem perder o layout mobile", async ({ page }) => {
+  const cards = [
+    card({ id: "chatgpt", planName: "ChatGPT Plus" }),
+    card({ id: "claude", planName: "Claude Pro", priceLabel: "R$ 113,85/mês" }),
+    card({ id: "ifood", service: "unknown", planName: "iFood Clube", priceLabel: "R$ 7,95/mês", manageUrl: null }),
+    card({ id: "gran", service: "unknown", planName: "Gran Faculdade", priceLabel: "R$ 77,00/mês", manageUrl: null }),
+  ];
+  await mockPlans(page, model(cards));
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.goto("/");
+
+  const rows = page.getByTestId("plan-card");
+  await expect(rows).toHaveCount(4);
+  const prices = await Promise.all(
+    cards.map((_, index) => rows.nth(index).getByTestId("plan-price").boundingBox()),
+  );
+  const priceEdges = prices.map((box) => box!.x + box!.width);
+  expect(Math.max(...priceEdges) - Math.min(...priceEdges)).toBeLessThan(2);
+
+  const actions = await Promise.all([
+    rows.nth(0).getByTestId("manage").boundingBox(),
+    rows.nth(2).getByTestId("add-manage-link").boundingBox(),
+  ]);
+  expect(Math.abs(actions[0]!.x - actions[1]!.x)).toBeLessThan(2);
+  expect(Math.abs(actions[0]!.width - actions[1]!.width)).toBeLessThan(2);
+  await rows.nth(2).getByTestId("add-manage-link").click();
+  await expect(rows.nth(2).getByTestId("plan-edit-form")).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(rows.nth(2).getByTestId("add-manage-link")).toBeVisible();
+  await expect(rows.nth(2).getByTestId("remove")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+});
