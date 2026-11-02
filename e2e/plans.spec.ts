@@ -42,8 +42,8 @@ function model(
   extra: { firstRead?: boolean; empty?: boolean } = {},
 ) {
   return {
-    monthlyLabel: cards.length ? "R$ 220/mês" : "R$ 0/mês",
-    annualLabel: cards.length ? "≈ R$ 2.640/ano" : "≈ R$ 0/ano",
+    monthlyLabel: cards.length ? "R$ 220,00/mês" : "R$ 0/mês",
+    annualLabel: cards.length ? "≈ R$ 2.640,00/ano" : "≈ R$ 0/ano",
     cards,
     suggestions: [],
     banners: [],
@@ -93,8 +93,8 @@ test("mostra o total, o plano e o link de gerenciar", async ({ page }) => {
   await expect(page.getByTestId("page-subtitle")).toHaveText(
     "Suas assinaturas, encontradas automaticamente no seu cartão.",
   );
-  await expect(page.getByTestId("monthly-total")).toHaveText("R$ 220/mês");
-  await expect(page.getByTestId("annual-total")).toHaveText("≈ R$ 2.640/ano");
+  await expect(page.getByTestId("monthly-total")).toHaveText("R$ 220,00/mês");
+  await expect(page.getByTestId("annual-total")).toHaveText("≈ R$ 2.640,00/ano");
   await expect(page.getByTestId("plan-name").first()).toHaveText(
     "ChatGPT Plus",
   );
