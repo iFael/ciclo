@@ -113,4 +113,62 @@ describe("sync", () => {
     expect(itemIdsForRun([], "item-seed")).toEqual(["item-seed"]);
     expect(itemIdsForRun([{ itemId: "item-table", status: "active" } as Connection], "item-seed")).toEqual(["item-table"]);
   });
+
+  it("upserts an overlapping transaction once so Postgres can apply the batch", async () => {
+    const batches: string[][] = [];
+    const store = createMemoryStore({
+      connections: [
+        {
+          id: "conn-1",
+          itemId: "item-table",
+          institution: "Banco teste",
+          connectorId: "bank",
+          status: "active",
+          consentExpiresAt: "2027-06-01T00:00:00.000Z",
+          lastSyncedAt: "2026-10-20T12:00:00.000Z",
+          lastErrorCode: null,
+          lastSyncHadData: true,
+          lastDataThrough: "2026-10-15",
+        } satisfies Connection,
+      ],
+    });
+    const base = store.upsertTransactions.bind(store);
+    store.upsertTransactions = async (rows) => {
+      const ids = rows.map((row) => row.id);
+      batches.push(ids);
+      if (new Set(ids).size !== ids.length) {
+        throw new Error("ON CONFLICT DO UPDATE command cannot affect row a second time");
+      }
+      await base(rows);
+    };
+    const result = await syncAll({
+      store,
+      now: () => NOW,
+      pluggy: {
+        async getItem(id) {
+          return { id, status: "UPDATED", connector: { id: "bank", name: "Banco teste" }, consentExpiresAt: "2027-06-01T00:00:00.000Z" };
+        },
+        async getAccounts() {
+          return [{ id: "acc", type: "CREDIT" }];
+        },
+        async listTransactions() {
+          return [
+            {
+              id: "tx-overlap",
+              description: "OPENAI *CHATGPT SUBSCR",
+              amount: 110,
+              date: "2026-10-15T00:00:00.000Z",
+              accountId: "acc",
+              currencyCode: "BRL",
+            },
+          ];
+        },
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect(result.code).toBeUndefined();
+    expect(batches).toEqual([["tx-overlap"]]);
+    const saved = await store.load();
+    expect(saved.connections[0]?.lastSyncedAt).toBe(NOW.toISOString());
+  });
 });

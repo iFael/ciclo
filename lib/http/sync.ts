@@ -3,7 +3,7 @@ import { isAuthorized } from "@/lib/http/gate";
 import { prepareScreen } from "@/lib/present";
 import { ConfigError, safeLog } from "@/lib/security";
 import { storeLogoCache } from "@/lib/store";
-import { syncAll } from "@/lib/sync";
+import { SyncStepError, syncAll } from "@/lib/sync";
 import {
   countNewSuggestions,
   newestSyncedAt,
@@ -28,7 +28,9 @@ export async function handleManualSync(_request?: Request): Promise<Response> {
     const known = suggestedIds(before.subscriptions);
     const sync = await syncAll(deps);
     if (!sync.ok) {
-      return Response.json({ error: "Não foi possível sincronizar agora." }, { status: 502 });
+      const code = sync.code ?? "sync_failed";
+      console.info(JSON.stringify(safeLog({ count: 0, status: "error", errorCode: code })));
+      return Response.json({ error: "Não foi possível sincronizar agora.", code }, { status: 502 });
     }
     const after = await deps.store.load();
     const newSuggestions = countNewSuggestions(known, suggestedIds(after.subscriptions));
@@ -39,7 +41,8 @@ export async function handleManualSync(_request?: Request): Promise<Response> {
     );
   } catch (error) {
     if (error instanceof ConfigError) return Response.json({ error: error.message }, { status: 503 });
-    console.info(JSON.stringify(safeLog({ count: 0, status: "error", errorCode: "sync_failed" })));
-    return Response.json({ error: "Não foi possível sincronizar agora." }, { status: 500 });
+    const code = error instanceof SyncStepError ? error.step : "sync_failed";
+    console.info(JSON.stringify(safeLog({ count: 0, status: "error", errorCode: code })));
+    return Response.json({ error: "Não foi possível sincronizar agora.", code }, { status: 500 });
   }
 }

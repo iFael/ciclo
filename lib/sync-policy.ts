@@ -51,6 +51,15 @@ export function rateLimitMessage(seconds: number): string {
   return `Você pode sincronizar de novo em ${waitPhrase(seconds)}.`;
 }
 
+const SYNC_STEP = /^[a-z][a-z0-9_]{0,40}$/;
+
+/** Portuguese failure plus a short step code. Anything else stays generic. */
+export function syncErrorMessage(code?: string | null): string {
+  const base = "Não foi possível sincronizar agora.";
+  if (!code || !SYNC_STEP.test(code)) return base;
+  return `${base} (${code})`;
+}
+
 export function shouldStartAutoSync(input: {
   inFlight: boolean;
   lastSyncedAt: string | null;

@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { ConfigError } from "@/lib/security";
-import { emptyState, type Store } from "@/lib/store";
+import { dedupeStoredTransactions, emptyState, type Store } from "@/lib/store";
 import type { AppState, Charge, Connection, ServiceLogo, StoredTx, Subscription, SubscriptionStatus } from "@/lib/types";
 
 const logoMemory = new Map<string, ServiceLogo>();
@@ -65,10 +65,11 @@ export function createSupabaseStore(): Store {
     },
     async upsertTransactions(rows) {
       const client = admin();
+      const unique = dedupeStoredTransactions(rows);
       await upsert(
         client,
         "transactions",
-        rows.map((row) => ({
+        unique.map((row) => ({
           id: row.id,
           item_id: row.itemId,
           account_id: row.accountId,

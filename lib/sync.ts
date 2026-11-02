@@ -5,9 +5,38 @@ import { detect } from "@/lib/matching";
 import { itemIdsForRun, mapPluggyTransaction, replaceSiblings, upsertConnectionFromItem } from "@/lib/pluggy/map";
 import type { PluggySource } from "@/lib/pluggy/client";
 import { safeLog } from "@/lib/security";
-import { storeLogoCache } from "@/lib/store";
+import { dedupeStoredTransactions, storeLogoCache } from "@/lib/store";
 import type { Store } from "@/lib/store";
 import type { Connection, StoredTx } from "@/lib/types";
+
+/** A sync step failed. `step` is a short code, never a message from another system. */
+export class SyncStepError extends Error {
+  readonly step: string;
+
+  constructor(step: string) {
+    super(step);
+    this.name = "SyncStepError";
+    this.step = step;
+  }
+}
+
+function logSyncFailure(step: string, status = "error"): void {
+  console.info(JSON.stringify(safeLog({ count: 0, status, errorCode: step })));
+}
+
+function asStep(error: unknown, step: string): SyncStepError {
+  if (error instanceof SyncStepError) return error;
+  logSyncFailure(step);
+  return new SyncStepError(step);
+}
+
+async function runStep<T>(step: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    throw asStep(error, step);
+  }
+}
 
 export type SyncDeps = {
   store: Store;
@@ -41,13 +70,17 @@ async function pullTransactions(pluggy: PluggySource, connection: Connection, no
       }
     }
   }
-  return rows;
+  return dedupeStoredTransactions(rows);
 }
 
 export async function syncItem(deps: SyncDeps, itemId: string, event: string, deletedIds: string[] = []): Promise<void> {
-  if (!deps.pluggy) throw new Error("Configuração incompleta: PLUGGY_CLIENT_ID");
-  const state = await deps.store.load();
-  const item = await deps.pluggy.getItem(itemId);
+  if (!deps.pluggy) {
+    logSyncFailure("pluggy_unconfigured");
+    throw new SyncStepError("pluggy_unconfigured");
+  }
+  const pluggy = deps.pluggy;
+  const state = await runStep("load_failed", () => deps.store.load());
+  const item = await runStep("item_failed", () => pluggy.getItem(itemId));
   const now = deps.now();
   let connections = upsertConnectionFromItem(state.connections, item, now);
   if (event === "item/created") connections = replaceSiblings(connections, item);
@@ -55,73 +88,102 @@ export async function syncItem(deps: SyncDeps, itemId: string, event: string, de
   const connection = state.connections.find((row) => row.itemId === itemId);
   if (!connection) return;
   if (connection.status !== "active") {
-    await deps.store.save(state);
+    await runStep("save_failed", () => deps.store.save(state));
     console.info(JSON.stringify(safeLog({ count: 0, status: connection.status, errorCode: connection.lastErrorCode })));
     return;
   }
 
   let fetched: StoredTx[] = [];
   try {
-    fetched = await pullTransactions(deps.pluggy, connection, now);
-  } catch {
-    await deps.store.save(state);
-    console.info(JSON.stringify(safeLog({ count: 0, status: connection.status, errorCode: "fetch_failed" })));
-    throw new Error("pluggy_fetch_failed");
+    fetched = await pullTransactions(pluggy, connection, now);
+  } catch (error) {
+    if (error instanceof SyncStepError) throw error;
+    try {
+      await deps.store.save(state);
+    } catch (saveError) {
+      throw asStep(saveError, "save_failed");
+    }
+    logSyncFailure("fetch_failed", connection.status);
+    throw new SyncStepError("fetch_failed");
   }
 
-  await deps.store.upsertTransactions(fetched);
+  await runStep("upsert_failed", () => deps.store.upsertTransactions(fetched));
   if (event === "transactions/deleted" && deletedIds.length > 0) {
     const fresh = new Set(fetched.map((row) => row.id));
-    await deps.store.deleteTransactions(deletedIds.filter((id) => !fresh.has(id)));
+    await runStep("delete_failed", () => deps.store.deleteTransactions(deletedIds.filter((id) => !fresh.has(id))));
   }
 
   const today = todayInSaoPaulo(now);
-  const history = await deps.store.transactionsSince(windowStart(today, connection.lastSyncedAt === null));
+  const history = await runStep("history_failed", () => deps.store.transactionsSince(windowStart(today, connection.lastSyncedAt === null)));
   const byId = new Map(history.map((row) => [row.id, row]));
   for (const row of fetched) byId.set(row.id, { ...byId.get(row.id), ...row });
-  const detections = detect(
-    [...byId.values()].map((row) => ({
-      id: row.id,
-      description: row.description,
-      amount: row.amount,
-      chargeDate: row.chargeDate,
-      foreignCharge: row.foreignCharge,
-      type: row.type,
-      category: row.category,
-      operationType: row.operationType,
-    })),
-    state.ignoredDescriptors,
-    today,
-  );
+  let detections;
+  try {
+    detections = detect(
+      [...byId.values()].map((row) => ({
+        id: row.id,
+        description: row.description,
+        amount: row.amount,
+        chargeDate: row.chargeDate,
+        foreignCharge: row.foreignCharge,
+        type: row.type,
+        category: row.category,
+        operationType: row.operationType,
+      })),
+      state.ignoredDescriptors,
+      today,
+    );
+  } catch (error) {
+    throw asStep(error, "detect_failed");
+  }
   const dates = fetched.map((row) => row.chargeDate).sort();
   connection.lastSyncedAt = now.toISOString();
   connection.lastSyncHadData = fetched.length > 0;
   if (dates.at(-1)) connection.lastDataThrough = dates.at(-1) ?? null;
-  const next = pruneSuggestions(mergeDetections(state, detections, true), detections);
+  let next;
+  try {
+    next = pruneSuggestions(mergeDetections(state, detections, true), detections);
+  } catch (error) {
+    throw asStep(error, "detect_failed");
+  }
   try {
     await ensureLogos(next, now, storeLogoCache(deps.store));
   } catch {
-    /* logo backfill never blocks a sync */
+    logSyncFailure("logo_failed");
   }
-  await deps.store.save(next);
-  await deps.store.purgeUnlinked(
-    windowStart(today, false),
-    next.charges.map((charge) => charge.transactionId),
+  await runStep("save_failed", () => deps.store.save(next));
+  await runStep("purge_failed", () =>
+    deps.store.purgeUnlinked(
+      windowStart(today, false),
+      next.charges.map((charge) => charge.transactionId),
+    ),
   );
   console.info(JSON.stringify(safeLog({ count: fetched.length, status: connection.status, errorCode: connection.lastErrorCode })));
 }
 
-export async function syncAll(deps: SyncDeps): Promise<{ ok: boolean; message?: string }> {
-  if (!deps.pluggy) return { ok: false, message: "Configuração incompleta: PLUGGY_CLIENT_ID" };
-  const state = await deps.store.load();
+export async function syncAll(deps: SyncDeps): Promise<{ ok: boolean; message?: string; code?: string }> {
+  if (!deps.pluggy) {
+    logSyncFailure("pluggy_unconfigured");
+    return { ok: false, message: "Configuração incompleta: PLUGGY_CLIENT_ID", code: "pluggy_unconfigured" };
+  }
+  let state;
+  try {
+    state = await deps.store.load();
+  } catch (error) {
+    const step = asStep(error, "load_failed");
+    return { ok: false, message: "Falha ao ler a Pluggy.", code: step.step };
+  }
   const ids = itemIdsForRun(state.connections, deps.seedItemId);
   let failed = false;
+  let code: string | undefined;
   for (const itemId of ids) {
     try {
       await syncItem(deps, itemId, "item/updated");
-    } catch {
+    } catch (error) {
       failed = true;
+      const step = error instanceof SyncStepError ? error : asStep(error, "sync_failed");
+      code ??= step.step;
     }
   }
-  return failed ? { ok: false, message: "Falha ao ler a Pluggy." } : { ok: true };
+  return failed ? { ok: false, message: "Falha ao ler a Pluggy.", code: code ?? "sync_failed" } : { ok: true };
 }
