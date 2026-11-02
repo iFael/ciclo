@@ -1,0 +1,20 @@
+<!-- Supabase → Authentication → Email Templates → Magic Link. Cole este HTML no corpo do template. -->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f1ea;padding:32px 0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border-radius:16px;padding:32px;">
+      <tr><td>
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          <td style="padding-right:10px;"><img src="https://ciclo-peach.vercel.app/icons/logo-animado.gif" width="32" height="32" alt="" style="display:block;border:0;border-radius:8px;"></td>
+          <td style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:17px;font-weight:600;color:#111;">Ciclo</td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="padding-top:24px;font-size:22px;font-weight:700;color:#111;">Entrar no Ciclo</td></tr>
+      <tr><td style="padding-top:8px;font-size:14px;color:#555;">Use este código para entrar. Ele vale por 1 hora.</td></tr>
+      <tr><td align="center" style="padding-top:24px;">
+        <div style="background:#0b0b0b;border-radius:12px;padding:20px 12px;font-size:36px;font-weight:700;letter-spacing:10px;color:#ffffff;font-family:SFMono-Regular,Menlo,Consolas,monospace;user-select:all;-webkit-user-select:all;">{{ .Token }}</div>
+      </td></tr>
+      <tr><td align="center" style="padding-top:12px;font-size:12px;color:#8a7f6e;">Toque e segure o código para copiar.</td></tr>
+      <tr><td style="padding-top:24px;font-size:12px;color:#999;">Se não foi você, ignore este e-mail.</td></tr>
+    </table>
+  </td></tr>
+</table>

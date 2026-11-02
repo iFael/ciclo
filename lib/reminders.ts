@@ -1,5 +1,6 @@
 import { diffDays, isoWeekKey, monthKey, todayInSaoPaulo } from "@/lib/dates";
 import { formatBrl, formatDayMonth } from "@/lib/format";
+import { renderSummaryHtml } from "@/lib/email-layout";
 import { buildScreen } from "@/lib/screen";
 import type { AppState } from "@/lib/types";
 
@@ -8,6 +9,7 @@ export type OutboundMail = {
   kind: string;
   subject: string;
   text: string;
+  html?: string;
 };
 
 const RENEW = "Renove no Dashboard da Pluggy: https://dashboard.pluggy.ai";
@@ -23,7 +25,14 @@ export function planReminders(state: AppState, sent: Set<string>, now = new Date
     if (model.cards.length === 0) lines.push("Nenhuma assinatura confirmada.");
     for (const card of model.cards) lines.push(`${card.planName} — ${card.priceLabel} — ${card.nextChargeLabel}`);
     lines.push("", `Total: ${formatBrl(model.monthlyTotal)}/mês (${model.annualLabel})`);
-    messages.push({ key: weekKey, kind: "weekly", subject: "Ciclo — resumo semanal", text: lines.join("\n") });
+    const html = renderSummaryHtml({
+      title: "Seu resumo semanal",
+      intro: "Aqui estão as assinaturas que o Ciclo acompanha e quanto elas somam por mês.",
+      rows: model.cards,
+      monthlyTotal: model.monthlyTotal,
+      annualLabel: model.annualLabel,
+    });
+    messages.push({ key: weekKey, kind: "weekly", subject: "Ciclo — resumo semanal", text: lines.join("\n"), html });
   }
 
   const month = `monthly:${monthKey(today)}`;
@@ -32,7 +41,14 @@ export function planReminders(state: AppState, sent: Set<string>, now = new Date
     if (model.cards.length === 0) lines.push("Nenhuma assinatura confirmada.");
     for (const card of model.cards) lines.push(`${card.planName} — ${card.priceLabel} — ${card.nextChargeLabel}`);
     lines.push("", `Total: ${formatBrl(model.monthlyTotal)}/mês (${model.annualLabel})`);
-    messages.push({ key: month, kind: "monthly", subject: "Ciclo — resumo mensal", text: lines.join("\n") });
+    const html = renderSummaryHtml({
+      title: "Seu resumo do mês",
+      intro: "Aqui estão as assinaturas que o Ciclo acompanha e quanto elas somam por mês.",
+      rows: model.cards,
+      monthlyTotal: model.monthlyTotal,
+      annualLabel: model.annualLabel,
+    });
+    messages.push({ key: month, kind: "monthly", subject: "Ciclo — resumo mensal", text: lines.join("\n"), html });
   }
 
   for (const subscription of state.subscriptions) {
