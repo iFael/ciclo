@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { Check, ExternalLink, LogOut, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { Brand, CycleMark } from "@/components/brand";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -445,6 +446,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
           <Brand />
           <div className="flex min-w-0 items-center gap-2.5">
             {desktop && ready && syncPill}
+            <ThemeToggle />
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" className="size-9 shrink-0 rounded-[10px] bg-card" data-testid="menu" aria-label="Abrir menu">

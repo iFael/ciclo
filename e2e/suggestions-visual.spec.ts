@@ -138,7 +138,10 @@ test("confirmed cards show the last charge and suggestions show a confidence bar
 
   for (const [viewport, scheme] of shots) {
     const size = viewport.width === 390 ? "mobile" : "desktop";
-    await page.emulateMedia({ colorScheme: scheme });
+    await page.addInitScript((theme) => {
+      if (theme === "light") localStorage.setItem("ciclo-theme", "light");
+      else localStorage.removeItem("ciclo-theme");
+    }, scheme);
     await page.setViewportSize(viewport);
     await page.goto("/?aba=assinaturas");
     await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });

@@ -1,8 +1,40 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Light and dark follow the system setting, like before. */
+@custom-variant dark (&:where(html:not([data-theme="light"]), html:not([data-theme="light"]) *));
+
+/* Dark is the default. Light is opt-in through the theme toggle (data-theme="light" on <html>). */
 :root {
+  color-scheme: dark;
+  --background: #0b0b0c;
+  --foreground: #f4f2ee;
+  --card: #141416;
+  --card-foreground: #f4f2ee;
+  --popover: #18181b;
+  --popover-foreground: #f4f2ee;
+  --primary: #e7dcc8;
+  --primary-foreground: #1a1612;
+  --secondary: #1d1d20;
+  --secondary-foreground: #f4f2ee;
+  --muted: #1b1b1e;
+  --muted-foreground: #9a978f;
+  --accent: #222226;
+  --accent-foreground: #f4f2ee;
+  --brand: #e7dcc8;
+  --brand-foreground: #1a1612;
+  --hero: #1a1815;
+  --hero-foreground: #f7f3ea;
+  --hero-muted: #a8a196;
+  --hero-border: #2f2b25;
+  --destructive: #ff8a80;
+  --success: #8fd19e;
+  --border: #26262a;
+  --input: #2e2e33;
+  --ring: #e7dcc8;
+  --radius: 1rem;
+}
+
+:root[data-theme="light"] {
   color-scheme: light;
   --background: #f6f5f2;
   --foreground: #141414;
@@ -29,36 +61,6 @@
   --border: #e4e0d8;
   --input: #dcd7ce;
   --ring: #1a1612;
-  --radius: 1rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --background: #0b0b0c;
-    --foreground: #f4f2ee;
-    --card: #141416;
-    --card-foreground: #f4f2ee;
-    --popover: #18181b;
-    --popover-foreground: #f4f2ee;
-    --primary: #e7dcc8;
-    --primary-foreground: #1a1612;
-    --secondary: #1d1d20;
-    --secondary-foreground: #f4f2ee;
-    --muted: #1b1b1e;
-    --muted-foreground: #9a978f;
-    --accent: #222226;
-    --accent-foreground: #f4f2ee;
-    --hero: #1a1815;
-    --hero-foreground: #f7f3ea;
-    --hero-muted: #a8a196;
-    --hero-border: #2f2b25;
-    --destructive: #ff8a80;
-    --success: #8fd19e;
-    --border: #26262a;
-    --input: #2e2e33;
-    --ring: #e7dcc8;
-  }
 }
 
 @theme inline {
