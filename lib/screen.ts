@@ -42,7 +42,8 @@ export function confirmedMonthlyTotal(state: AppState): number {
 }
 
 function anchorDate(subscription: Subscription, state: AppState, today: string): string | null {
-  const last = chargeDates(state, subscription.id).at(-1) ?? null;
+  // An installment the bank lists ahead of time is not a charge yet.
+  const last = chargeDates(state, subscription.id).filter((date) => date <= today).at(-1) ?? null;
   if (last) return last;
   if (subscription.expectedChargeDate && diffDays(subscription.expectedChargeDate, today) >= 0) return subscription.expectedChargeDate;
   return null;

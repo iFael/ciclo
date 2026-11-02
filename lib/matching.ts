@@ -211,10 +211,13 @@ function clusterStable(txs: CandidateTx[]): CandidateTx[][] {
   return clusters;
 }
 
+const FUTURE_CHARGE_DAYS = 45;
+
 function recentEnough(last: string, today: string, cadence: "monthly" | "annual"): boolean {
   const age = diffDays(last, today);
   const grace = cadence === "annual" ? ANNUAL_GRACE_DAYS : MONTHLY_GRACE_DAYS;
-  return age >= 0 && age <= grace;
+  // Card feeds list the next installment ahead of time, dated in the coming bill.
+  return age >= -FUTURE_CHARGE_DAYS && age <= grace;
 }
 
 type Summary = {
