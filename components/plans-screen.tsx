@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
-import { Check, ExternalLink, LogOut, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
+import { Check, CircleHelp, ExternalLink, LogOut, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { Brand, CycleMark, LoadingScreen } from "@/components/brand";
 import { StatementSearch } from "@/components/statement-search";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { haptic, RollingAmount, Tilt } from "@/components/vivid";
+import { SamplePlan, WelcomeTour, type TourStep } from "@/components/welcome-tour";
 import { cn } from "@/lib/utils";
 import { bannerPlacement, isPlansTab, resolvePlansTab, tabLabelParts, type PlansTab } from "@/lib/plans-tabs";
 import { shouldStartAutoSync, suggestionSummary, syncErrorMessage, SYNC_COOLDOWN_MS } from "@/lib/sync-policy";
@@ -199,6 +200,8 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   const [syncToast, setSyncToast] = useState<{ title: string; detail?: string } | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [editingLogo, setEditingLogo] = useState<string | null>(null);
+  const [touring, setTouring] = useState(false);
+  const tourChecked = useRef(false);
   const desktop = useDesktop();
   const tabRefs = useRef<Partial<Record<PlansTab, HTMLButtonElement | null>>>({});
   const syncedAtRef = useRef<string | null>(null);
@@ -284,6 +287,31 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
     return () => window.clearTimeout(timer);
   }, [syncToast, syncError]);
 
+  // A new account sees the welcome tour once. The flag lives on the account, so it follows the user to other devices.
+  useEffect(() => {
+    if (!model || error || tourChecked.current) return;
+    tourChecked.current = true;
+    let active = true;
+    fetch("/api/tutorial", { cache: "no-store" })
+      .then((response) => (response.ok ? (response.json() as Promise<{ seen?: boolean }>) : null))
+      .then((body) => {
+        if (active && body && body.seen === false) setTouring(true);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [model, error]);
+
+  function closeTour() {
+    setTouring(false);
+    void fetch("/api/tutorial", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seen: true }),
+    }).catch(() => {});
+  }
+
   async function act(action: string, id: string, service?: string, domain?: string, replaces?: string, url?: string): Promise<boolean> {
     haptic();
     const response = await fetch("/api/plans", {
@@ -346,6 +374,55 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
       haptic([10, 40, 16]);
       setAddedToast((current) => current + 1);
     }
+  }
+
+  const tourSteps: TourStep[] = [];
+  if (model) {
+    const openAssinaturas = () => {
+      if (!desktop && tab !== "assinaturas") writeTab("assinaturas", "replace");
+    };
+    tourSteps.push({
+      id: "welcome",
+      title: "Boas-vindas ao Ciclo",
+      body: "O Ciclo lê o seu cartão e encontra as assinaturas sozinho. Em poucos passos eu te mostro o essencial.",
+    });
+    tourSteps.push({
+      id: "suggestions",
+      title: "Sugestões do cartão",
+      body: "Cobranças que parecem assinatura chegam aqui. Toque em “É assinatura” para somar ao total, ou em “Não é” para descartar.",
+      target: desktop ? '[data-testid="panel-sugestoes"] [data-testid="suggestion"], [data-testid="empty-sugestoes"]' : "#tab-sugestoes",
+    });
+    if (model.cards.length > 0) {
+      tourSteps.push({
+        id: "logo",
+        title: "Toque no ícone",
+        body: "Abre o campo Link do Gerenciar. Cole ali a página onde você cancela ou muda o plano, e o logo passa a vir do mesmo site.",
+        target: '[data-testid="change-logo"]',
+        prepare: openAssinaturas,
+      });
+      if (model.cards.some((card) => card.manageUrl)) {
+        tourSteps.push({
+          id: "manage",
+          title: "Gerenciar",
+          body: "Leva direto para onde você paga: App Store, Google Play ou o site do serviço. É por ali que se cancela de verdade.",
+          target: '[data-testid="manage"]',
+          prepare: openAssinaturas,
+        });
+      }
+    } else {
+      tourSteps.push({
+        id: "sample",
+        title: "Cada assinatura vira um cartão",
+        body: "Toque no ícone para colar o Link do Gerenciar. O botão Gerenciar leva direto para a App Store, o Google Play ou o site do serviço.",
+        visual: <SamplePlan />,
+      });
+    }
+    tourSteps.push({
+      id: "menu",
+      title: "Mais opções",
+      body: "Aqui você sincroniza o cartão, vê as conexões e pode rever este tutorial quando quiser.",
+      target: '[data-testid="menu"]',
+    });
   }
 
   const manualSync = () => startSync("manual", undefined, syncedAtRef, setModel, setSyncing, setSyncToast, setSyncError);
@@ -473,6 +550,10 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                 <DropdownMenuItem data-testid="menu-connections" onSelect={() => setConnections(true)}>
                   <Plug />
                   Conexões
+                </DropdownMenuItem>
+                <DropdownMenuItem data-testid="menu-tutorial" disabled={!ready} onSelect={() => window.setTimeout(() => setTouring(true), 120)}>
+                  <CircleHelp />
+                  Ver tutorial
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -954,6 +1035,8 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
       </div>
 
       {removeDialogs}
+
+      {touring && ready && tourSteps.length > 0 && <WelcomeTour steps={tourSteps} onClose={closeTour} />}
 
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-col items-center gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         {toastId && (
