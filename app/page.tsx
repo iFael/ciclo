@@ -5,8 +5,18 @@ import { getSessionUser } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
-  if (e2eBypass()) return <PlansScreen />;
+function firstQuery(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ aba?: string | string[] }>;
+}) {
+  const aba = firstQuery((await searchParams).aba);
+  if (e2eBypass()) return <PlansScreen initialAba={aba} />;
   if (!publicSupabase()) {
     return (
       <main className="sheet" data-testid="screen">
@@ -21,5 +31,5 @@ export default async function HomePage() {
   }
   const user = await getSessionUser();
   if (!user) redirect("/login");
-  return <PlansScreen />;
+  return <PlansScreen initialAba={aba} />;
 }
