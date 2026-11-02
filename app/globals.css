@@ -296,3 +296,30 @@
     animation: none;
   }
 }
+
+/* Loading lines: four app tips take turns, 3 s each, with no script. */
+@keyframes loading-line {
+  0% { opacity: 0; transform: translateY(8px); }
+  5%, 22% { opacity: 1; transform: translateY(0); }
+  27%, 100% { opacity: 0; transform: translateY(-8px); }
+}
+.loading-line {
+  opacity: 0;
+  animation: loading-line 12s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-line { animation: none; }
+  .loading-line:first-child { opacity: 1; }
+}
+
+/* PWA: the screen stays fixed. No double-tap zoom, no pinch, no zoom on focusing a field. */
+html,
+body {
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+}
+input,
+select,
+textarea {
+  font-size: max(16px, 1em);
+}

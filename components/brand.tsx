@@ -38,6 +38,13 @@ export function Brand({ className }: { className?: string }) {
   );
 }
 
+const LOADING_LINES = [
+  "Dica: toque na logo de uma assinatura para trocá-la.",
+  "Dica: pesquise no extrato para achar cobranças escondidas.",
+  "Dica: use o menu ⋯ para sincronizar quando quiser.",
+  "Dica: confirme as sugestões para não perder nenhuma renovação.",
+];
+
 /** Full-screen wait while the plans load: the mark turns without stopping. */
 export function LoadingScreen() {
   return (
@@ -49,7 +56,13 @@ export function LoadingScreen() {
             <CycleMark className="size-14" animated="loading" />
           </span>
         </span>
-        <span className="text-sm font-medium tracking-wide text-muted-foreground">Carregando suas assinaturas…</span>
+        <span className="loading-lines relative grid h-12 w-80 max-w-[88vw] place-items-center text-center text-[15px] font-medium text-muted-foreground">
+          {LOADING_LINES.map((line, i) => (
+            <span key={line} className="loading-line absolute inset-x-0" style={{ animationDelay: `${i * 3}s` }}>
+              {line}
+            </span>
+          ))}
+        </span>
       </div>
     </div>
   );
