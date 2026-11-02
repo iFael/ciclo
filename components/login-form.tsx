@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { EMAIL_CODE_PATTERN, LOGIN_COPY, readMagicLinkResponse, readVerifyResponse } from "@/lib/login-feedback";
 
 export function LoginForm({ initialError = "" }: { initialError?: string }) {
@@ -24,7 +26,7 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
   if (sent) {
     return (
       <form
-        className="login"
+        className="grid gap-4"
         onSubmit={async (event) => {
           event.preventDefault();
           if (pending) return;
@@ -55,8 +57,8 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
           }
         }}
       >
-        <h1 data-testid="login-sent">{LOGIN_COPY.checkEmail}</h1>
-        <p className="tagline">
+        <h1 data-testid="login-sent" className="text-2xl font-bold tracking-[-0.03em]">{LOGIN_COPY.checkEmail}</h1>
+        <p className="-mt-1 text-[15px] text-muted-foreground">
           {message ? (
             LOGIN_COPY.sent
           ) : (
@@ -64,10 +66,11 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
           )}{" "}
           O link abre no navegador. Se o Ciclo está na Tela de Início, digite o código do e-mail.
         </p>
-        <label className="field" htmlFor="login-code">
+        <label className="grid gap-2 text-sm font-medium" htmlFor="login-code">
           Código
-          <input
+          <Input
             id="login-code"
+            className="h-14 text-center text-2xl font-semibold tracking-[0.3em]"
             ref={codeRef}
             data-testid="login-code"
             inputMode="numeric"
@@ -85,16 +88,17 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
             }}
           />
         </label>
-        <button className="block" data-testid="login-code-submit" type="submit" disabled={pending !== null || !EMAIL_CODE_PATTERN.test(code)} aria-busy={pending === "code"}>
+        <Button size="lg" className="w-full" data-testid="login-code-submit" type="submit" disabled={pending !== null || !EMAIL_CODE_PATTERN.test(code)} aria-busy={pending === "code"}>
           {pending === "code" ? "Confirmando…" : "Confirmar código"}
-        </button>
+        </Button>
         {message && (
-          <p className={tone === "error" ? "status status-error" : "status"} role={tone === "error" ? "alert" : "status"} data-testid="login-status">
+          <p className={tone === "error" ? "rounded-lg border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-sm font-medium text-destructive" : "text-sm text-muted-foreground"} role={tone === "error" ? "alert" : "status"} data-testid="login-status">
             {message}
           </p>
         )}
-        <button
-          className="quiet block"
+        <Button
+          variant="ghost"
+          className="w-full"
           type="button"
           onClick={() => {
             setSent(false);
@@ -104,17 +108,17 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
           }}
         >
           Usar outro e-mail
-        </button>
+        </Button>
       </form>
     );
   }
 
   return (
     <>
-      <h1>Entrar no Ciclo</h1>
-      <p className="tagline">Suas assinaturas, encontradas automaticamente no seu cartão.</p>
+      <h1 className="text-2xl font-bold tracking-[-0.03em]">Entrar no Ciclo</h1>
+      <p className="mb-6 mt-2 text-[15px] text-muted-foreground">Suas assinaturas, encontradas automaticamente no seu cartão.</p>
       <form
-      className="login"
+      className="grid gap-4"
       onSubmit={async (event) => {
         event.preventDefault();
         if (pending) return;
@@ -143,9 +147,9 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
         }
       }}
     >
-      <label className="field" htmlFor="login-email">
+      <label className="grid gap-2 text-sm font-medium" htmlFor="login-email">
         E-mail
-        <input
+        <Input
           id="login-email"
           data-testid="login-email"
           type="email"
@@ -162,11 +166,11 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
           required
         />
       </label>
-      <button className="block" data-testid="login-submit" type="submit" disabled={pending !== null} aria-busy={pending === "link"}>
+      <Button size="lg" className="w-full" data-testid="login-submit" type="submit" disabled={pending !== null} aria-busy={pending === "link"}>
         {pending === "link" ? "Enviando…" : "Receber link"}
-      </button>
+      </Button>
       {message && (
-        <p className="status status-error" role="alert" data-testid="login-status">
+        <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-sm font-medium text-destructive" role="alert" data-testid="login-status">
           {message}
         </p>
       )}

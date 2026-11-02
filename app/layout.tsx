@@ -4,7 +4,7 @@ import { BackCache } from "@/components/back-cache";
 import { RegisterSW } from "@/components/register-sw";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-sans" });
+const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "Ciclo",
@@ -38,8 +38,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className={inter.variable}>
-      <body>
-        <div className="canvas">
+      <body className="font-sans">
+        <div className="min-h-dvh">
           <BackCache />
           <RegisterSW />
           {children}
