@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyAction, mergeDetections } from "@/lib/actions";
+import { applyAction, attachKnownCharges, mergeDetections } from "@/lib/actions";
 import { CATALOG, planNameFor } from "@/lib/catalog";
 import { addMonthsClamp, diffDays } from "@/lib/dates";
 import { createMemoryStore } from "@/lib/memory-store";
@@ -102,11 +102,11 @@ describe("matching", () => {
     expect(detect([tx({ id: "r", description: "OPENAI *CHATGPT SUBSCR", amount: -110, chargeDate: "2026-01-01" })], [])).toEqual([]);
     expect(detect([tx({ id: "i", description: "IOF do rotativo", amount: 12, chargeDate: "2026-01-01", mcc: 5734 })], [])).toEqual([]);
     expect(detect([tx({ id: "m", description: "LOJA QUALQUER", amount: 50, chargeDate: "2026-01-01", mcc: 5734 })], [])).toEqual([]);
-    expect(detect([tx({ id: "ok", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-01", mcc: 5734 })], [], "2026-01-02")).toEqual([]);
+    expect(detect([tx({ id: "ok", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-01-01", mcc: 5734 })], [], "2026-01-02")[0]?.suggestionLabel).toBe("1 cobrança recente");
     expect(detect([tx({ id: "api", description: "OPENAI *API USAGE", amount: 20, chargeDate: "2026-01-01" })], [])).toEqual([]);
   });
 
-  it("suggests three recent calendar months and ignores a pair", () => {
+  it("suggests three recent calendar months and a pair, the pair with less confidence", () => {
     const months = ["2026-08-12", "2026-09-12", "2026-10-12"];
     const found = detect(
       months.map((chargeDate, index) => tx({ id: `m${index}`, description: "OPENAI *CHATGPT SUBSCR", chargeDate })),
@@ -124,7 +124,8 @@ describe("matching", () => {
       [],
       "2026-11-01",
     );
-    expect(pair).toEqual([]);
+    expect(pair).toHaveLength(1);
+    expect(pair[0].confidenceScore).toBeLessThan(found[0].confidenceScore);
   });
 
   it("accepts month-end and leap-year sequences", () => {
@@ -187,9 +188,10 @@ describe("matching", () => {
     expect(found).toEqual([]);
   });
 
-  it("does not auto-confirm a known service; three months stay a suggestion", () => {
+  it("does not auto-confirm a known service; one charge or three months stay a suggestion", () => {
     const one = detect([tx({ id: "a", description: "OPENAI *CHATGPT SUBSCR", chargeDate: "2026-10-01" })], [], "2026-11-01");
-    expect(one).toEqual([]);
+    expect(one[0].confirm).toBe(false);
+    expect(one[0].autoConfirmed).toBe(false);
     const found = detect(
       ["2026-08-01", "2026-09-01", "2026-10-01"].map((chargeDate, index) =>
         tx({ id: `c${index}`, description: "OPENAI *CHATGPT SUBSCR", chargeDate }),
@@ -315,25 +317,40 @@ describe("screen and safety", () => {
     expect(planReminders({ ...loaded, subscriptions: [{ ...loaded.subscriptions[0], expectedChargeDate: "2026-11-04" }] }, new Set(), NOW).some((mail) => mail.kind === "charge")).toBe(true);
   });
 
-  it("raises Parece cancelada only after a healthy read and answers both ways", () => {
+  it("marks a confirmed plan inactive when it stops charging, and back when it charges again", () => {
     const today = new Date("2026-10-08T15:00:00.000Z");
     const base = state({
       connections: [connection({ lastDataThrough: "2026-10-05", lastSyncHadData: true, status: "active" })],
-      subscriptions: [subscription({ expectedChargeDate: "2026-08-20", amount: 110 })],
+      subscriptions: [subscription({ expectedChargeDate: "2026-08-20", amount: 110, descriptors: ["OPENAI CHATGPT SUBSCR"] })],
     });
-    expect(buildScreen(base, today).banners.some((banner) => banner.text.startsWith("Parece cancelada?"))).toBe(true);
+    const screen = buildScreen(base, today);
+    expect(screen.cards).toHaveLength(0);
+    expect(screen.inactiveCards).toHaveLength(1);
+    expect(screen.inactiveCards[0].inactiveLabel).toBe("Sem cobrança desde 20/08");
+    expect(screen.monthlyTotal).toBe(0);
+    expect(screen.banners.some((banner) => banner.text.startsWith("Parece cancelada?"))).toBe(false);
+
     const stale = state({
       connections: [connection({ status: "expired", lastSyncHadData: false, lastDataThrough: "2026-10-05" })],
       subscriptions: [subscription({ expectedChargeDate: "2026-08-20" })],
     });
-    expect(buildScreen(stale, today).banners.some((banner) => banner.text.startsWith("Parece cancelada?"))).toBe(false);
-    const early = buildScreen(base, new Date("2026-09-20T15:00:00.000Z"));
-    expect(early.banners.some((banner) => banner.text.startsWith("Parece cancelada?"))).toBe(false);
+    expect(buildScreen(stale, today).inactiveCards).toHaveLength(0);
+    expect(buildScreen(base, new Date("2026-09-20T15:00:00.000Z")).inactiveCards).toHaveLength(0);
+
     const paid = applyAction(base, { action: "still-paying", id: "sub-1" }, today);
     expect(buildScreen(paid, today).monthlyTotal).toBe(110);
-    expect(buildScreen(paid, today).banners.some((banner) => banner.text.startsWith("Parece cancelada?"))).toBe(false);
-    const cancelled = applyAction(base, { action: "cancelled", id: "sub-1" }, today);
-    expect(confirmedMonthlyTotal(cancelled)).toBe(0);
+    expect(buildScreen(paid, today).inactiveCards).toHaveLength(0);
+
+    const charged = attachKnownCharges(base, [
+      { id: "tx-back", description: "OPENAI *CHATGPT SUBSCR", amount: 112, chargeDate: "2026-10-04" },
+      { id: "tx-other", description: "OUTRA LOJA", amount: 110, chargeDate: "2026-10-04" },
+      { id: "tx-far", description: "OPENAI *CHATGPT SUBSCR", amount: 300, chargeDate: "2026-10-05" },
+    ]);
+    expect(charged.charges.map((charge) => charge.transactionId)).toEqual(["tx-back"]);
+    const back = buildScreen(charged, today);
+    expect(back.cards).toHaveLength(1);
+    expect(back.inactiveCards).toHaveLength(0);
+    expect(back.monthlyTotal).toBe(110);
   });
 
   it("shows Ainda cobrando after removal and both buttons do what they say", () => {
@@ -345,7 +362,8 @@ describe("screen and safety", () => {
     expect(banner?.text).toBe("Ainda cobrando: ChatGPT Plus em 01/06");
     const restored = applyAction(base, { action: "restore-charging", id: "sub-1" }, NOW);
     expect(restored.subscriptions[0].status).toBe("confirmed");
-    expect(buildScreen(restored, NOW).cards).toHaveLength(1);
+    const restoredScreen = buildScreen(restored, NOW);
+    expect(restoredScreen.cards.length + restoredScreen.inactiveCards.length).toBe(1);
     const ignored = applyAction(base, { action: "ignore-charging", id: "sub-1" }, NOW);
     expect(ignored.subscriptions[0].status).toBe("ignored");
     expect(ignored.ignoredDescriptors).toContain("OPENAI CHATGPT SUBSCR");

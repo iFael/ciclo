@@ -2,6 +2,8 @@ import { cadenceOf, chargeDates, isStaleCharge, lastChargeLabel } from "@/lib/ch
 import { APPLE_CHOICES, serviceInfo } from "@/lib/catalog";
 import { diffDays, todayInSaoPaulo } from "@/lib/dates";
 import { formatBrl, formatDayMonth, formatDayMonthYear, lastSyncAgeHours, round2 } from "@/lib/format";
+import { withLearned } from "@/lib/confidence";
+import { feedbackFrom, learnedAdjustment } from "@/lib/learning";
 import { scoreStoredCharges } from "@/lib/matching";
 import { newestSyncedAt } from "@/lib/sync-policy";
 import type { AppState, Connection, ScreenBanner, ScreenModel, ServiceLogo, Subscription } from "@/lib/types";
@@ -46,33 +48,34 @@ function logoOf(subscription: Subscription, logos?: Map<string, ServiceLogo>): {
   return { logoUrl: null, logoFallback: true };
 }
 
-function cancelBanner(subscription: Subscription, state: AppState, today: string): ScreenBanner | null {
-  if (subscription.status !== "confirmed") return null;
+/**
+ * A confirmed plan is inactive when its last charge is past the grace window
+ * and the bank kept sending newer data, so the missing charge is real.
+ * "Ainda pago" snoozes this for that last charge. A new charge makes it
+ * active again with no action from the user.
+ */
+export function isInactive(subscription: Subscription, state: AppState, today: string): boolean {
+  if (subscription.status !== "confirmed") return false;
   const last = anchorDate(subscription, state, today);
-  if (!last) return null;
-  if (subscription.cancelPromptSnoozeDate === last) return null;
+  if (!last) return false;
+  if (subscription.cancelPromptSnoozeDate === last) return false;
   const dates = chargeDates(state, subscription.id);
   const cadence = cadenceOf(dates.length ? dates : [last]);
-  if (!isStaleCharge(last, today, cadence)) return null;
-  const newer = state.charges.some((charge) => charge.subscriptionId === subscription.id && charge.chargeDate > last);
-  if (newer) return null;
-  const active = state.connections.some(
+  if (!isStaleCharge(last, today, cadence)) return false;
+  return state.connections.some(
     (connection) =>
       connection.status === "active" &&
       connection.lastSyncHadData &&
       connection.lastDataThrough !== null &&
       connection.lastDataThrough > last,
   );
-  if (!active) return null;
-  return {
-    id: `cancel:${subscription.id}`,
-    tone: "neutral",
-    text: `Parece cancelada? ${subscription.planName}`,
-    actions: [
-      { id: "yes", label: "Sim", action: "cancelled", targetId: subscription.id },
-      { id: "still", label: "Ainda pago", action: "still-paying", targetId: subscription.id },
-    ],
-  };
+}
+
+export function activeMonthlyTotal(state: AppState, today: string): number {
+  const total = state.subscriptions
+    .filter((subscription) => subscription.status === "confirmed" && !isInactive(subscription, state, today))
+    .reduce((sum, subscription) => sum + subscription.amount, 0);
+  return round2(total);
 }
 
 export function buildScreen(state: AppState, now = new Date(), logos?: Map<string, ServiceLogo>): ScreenModel {
@@ -80,9 +83,10 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
   const syncedAt = newestSyncedAt(state.connections);
   const age = lastSyncAgeHours(syncedAt, now);
   const firstRead = state.connections.every((connection) => !connection.lastSyncedAt);
-  const cards = state.subscriptions
+  const allCards = state.subscriptions
     .filter((subscription) => subscription.status === "confirmed")
     .map((subscription) => {
+      const inactive = isInactive(subscription, state, today);
       const info = serviceInfo(subscription.service);
       const company = companyOf(subscription);
       const dates = chargeDates(state, subscription.id);
@@ -103,11 +107,15 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
         notice: subscription.planChangeNotice,
         logoUrl: logo.logoUrl,
         logoFallback: logo.logoFallback,
+        inactiveLabel: inactive && last ? `Sem cobrança desde ${formatDayMonth(last)}` : null,
         sortDate: last ?? "9999-99-99",
       };
     })
     .sort((a, b) => a.sortDate.localeCompare(b.sortDate))
     .map(({ sortDate: _sortDate, ...card }) => card);
+  const cards = allCards.filter((card) => !card.inactiveLabel);
+  const inactiveCards = allCards.filter((card) => card.inactiveLabel);
+  const feedback = feedbackFrom(state);
 
   const suggestions = state.subscriptions
     .filter((subscription) => subscription.status === "suggested")
@@ -115,12 +123,15 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
       const charges = state.charges
         .filter((charge) => charge.subscriptionId === subscription.id)
         .map((charge) => ({ chargeDate: charge.chargeDate, amount: charge.amount }));
-      const confidence = scoreStoredCharges({
-        charges,
-        today,
-        service: subscription.service,
-        planName: subscription.planName,
-      });
+      const confidence = withLearned(
+        scoreStoredCharges({
+          charges,
+          today,
+          service: subscription.service,
+          planName: subscription.planName,
+        }),
+        learnedAdjustment(subscription.descriptors.length ? subscription.descriptors : [subscription.planName], feedback),
+      );
       const logo = logoOf(subscription, logos);
       return {
         id: subscription.id,
@@ -196,8 +207,6 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
     });
   }
   for (const subscription of state.subscriptions) {
-    const banner = cancelBanner(subscription, state, today);
-    if (banner) banners.push(banner);
     if (subscription.status !== "dismissed" || !subscription.dismissedAt) continue;
     const dismissedOn = subscription.dismissedAt.slice(0, 10);
     for (const charge of state.charges) {
@@ -217,7 +226,7 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
   const toneRank = { red: 0, yellow: 1, neutral: 2 };
   banners.sort((a, b) => toneRank[a.tone] - toneRank[b.tone]);
 
-  const monthlyTotal = confirmedMonthlyTotal(state);
+  const monthlyTotal = activeMonthlyTotal(state, today);
   const annualApprox = round2(monthlyTotal * 12);
   return {
     monthlyLabel: `${formatBrl(monthlyTotal)}/mês`,
@@ -225,12 +234,13 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
     monthlyTotal,
     annualApprox,
     cards,
+    inactiveCards,
     suggestions,
     banners,
     footer: firstRead || age === null ? "Ainda sem leitura" : age < 1 ? "Atualizado há menos de 1 h" : `Atualizado há ${Math.floor(age)} h`,
     syncedAt,
     firstRead,
-    empty: !firstRead && cards.length === 0 && suggestions.length === 0,
+    empty: !firstRead && cards.length === 0 && inactiveCards.length === 0 && suggestions.length === 0,
     connections: state.connections.map((connection) => ({
       institution: connection.institution ?? "Conexão",
       statusLabel: STATUS_LABEL[connection.status],

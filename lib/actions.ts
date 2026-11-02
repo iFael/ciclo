@@ -249,3 +249,39 @@ export function pruneSuggestions(input: AppState, detections: Detection[]): AppS
   if (removed.size > 0) state.charges = state.charges.filter((charge) => !removed.has(charge.subscriptionId));
   return state;
 }
+
+/**
+ * Keep following plans the user confirmed. A new card charge with one of the
+ * plan's descriptors and an amount within 15% is linked to the plan, even when
+ * it is a single charge after a pause, so an inactive plan becomes active
+ * again by itself.
+ */
+export function attachKnownCharges(
+  input: AppState,
+  transactions: { id: string; description: string; amount: number; chargeDate: string }[],
+): AppState {
+  const state = clone(input);
+  const linked = new Set(state.charges.map((charge) => charge.transactionId));
+  for (const subscription of state.subscriptions) {
+    if (subscription.status !== "confirmed" || subscription.descriptors.length === 0) continue;
+    const descriptors = new Set(subscription.descriptors.map((item) => normalizeDescriptor(item)));
+    for (const tx of transactions) {
+      if (linked.has(tx.id) || tx.amount <= 0) continue;
+      if (!descriptors.has(normalizeDescriptor(tx.description))) continue;
+      if (!withinPercent(subscription.amount, tx.amount, 0.15)) continue;
+      if (state.charges.some((charge) => charge.subscriptionId === subscription.id && charge.chargeDate === tx.chargeDate)) continue;
+      state.charges.push({
+        subscriptionId: subscription.id,
+        chargeDate: tx.chargeDate,
+        amount: tx.amount,
+        transactionId: tx.id,
+        resolved: false,
+      });
+      linked.add(tx.id);
+      if (!subscription.expectedChargeDate || tx.chargeDate > subscription.expectedChargeDate) {
+        subscription.expectedChargeDate = tx.chargeDate;
+      }
+    }
+  }
+  return state;
+}

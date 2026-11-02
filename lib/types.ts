@@ -109,6 +109,8 @@ export type ScreenCard = {
   notice: string | null;
   logoUrl: string | null;
   logoFallback: boolean;
+  /** Set when a confirmed plan stopped being charged. Not counted in the total. */
+  inactiveLabel?: string | null;
 };
 
 export type ScreenSuggestion = {
@@ -129,6 +131,8 @@ export type ScreenModel = {
   monthlyTotal: number;
   annualApprox: number;
   cards: ScreenCard[];
+  /** Confirmed plans with no charge in the last cycle while the bank kept sending data. */
+  inactiveCards: ScreenCard[];
   suggestions: ScreenSuggestion[];
   banners: ScreenBanner[];
   footer: string;

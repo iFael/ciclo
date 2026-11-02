@@ -1,3 +1,4 @@
+import { MIN_AMOUNT } from "@/lib/rules";
 import { descriptorWords, hasPhrase, normalizeDescriptor } from "@/lib/text";
 
 /**
@@ -25,6 +26,32 @@ const GENERIC_PHRASES: string[][] = [
   ["GOOGLE", "PAYMENT"],
 ];
 
+/** Words that mark investment, savings or balance movements, not services. */
+const INVESTMENT_WORDS = new Set([
+  "RENDIMENTO",
+  "RENDIMENTOS",
+  "RESGATE",
+  "APLICACAO",
+  "RESERVA",
+  "POUPANCA",
+  "CDB",
+  "LCI",
+  "LCA",
+  "TESOURO",
+  "INVESTIMENTO",
+  "INVESTIMENTOS",
+  "CASHBACK",
+  "SALDO",
+  "COFRINHO",
+  "CAIXINHA",
+]);
+
+const INVESTMENT_PHRASES: string[][] = [
+  ["DINHEIRO", "RETIRADO"],
+  ["DINHEIRO", "GUARDADO"],
+  ["DINHEIRO", "RESERVADO"],
+];
+
 export type TxSignals = {
   description: string;
   amount: number;
@@ -35,12 +62,21 @@ export type TxSignals = {
 
 /**
  * Why a transaction cannot be a subscription, or null when it might be one.
- * Kinds: credit, juros, multa, iof, pix, transfer, installment, refund, fee, boleto, generic.
+ * Kinds: credit, tiny, investment, juros, multa, iof, pix, transfer, installment, refund, fee, boleto.
  */
 export function excludedKind(tx: TxSignals): string | null {
   const type = (tx.type ?? "").toUpperCase();
   if (type === "CREDIT" || tx.amount <= 0) return "credit";
+  if (tx.amount < MIN_AMOUNT) return "tiny";
   const words = descriptorWords(tx.description);
+  const categoryWords = descriptorWords(tx.category ?? "");
+  if (
+    words.some((word) => INVESTMENT_WORDS.has(word)) ||
+    INVESTMENT_PHRASES.some((phrase) => hasPhrase(words, phrase)) ||
+    categoryWords.some((word) => word === "INVESTMENT" || word === "INVESTMENTS" || word === "SAVINGS")
+  ) {
+    return "investment";
+  }
   const operation = normalizeDescriptor(tx.operationType ?? "");
   const category = normalizeDescriptor(tx.category ?? "");
   const operationWords = operation ? operation.split(" ") : [];

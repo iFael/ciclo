@@ -1,4 +1,4 @@
-import { mergeDetections, pruneSuggestions } from "@/lib/actions";
+import { attachKnownCharges, mergeDetections, pruneSuggestions } from "@/lib/actions";
 import { todayInSaoPaulo, transactionQueries, windowStart } from "@/lib/dates";
 import { ensureLogos } from "@/lib/logos/resolve";
 import { detect } from "@/lib/matching";
@@ -117,10 +117,11 @@ export async function syncItem(deps: SyncDeps, itemId: string, event: string, de
   const history = await runStep("history_failed", () => deps.store.transactionsSince(windowStart(today, connection.lastSyncedAt === null)));
   const byId = new Map(history.map((row) => [row.id, row]));
   for (const row of fetched) byId.set(row.id, { ...byId.get(row.id), ...row });
+  const rows = [...byId.values()];
   let detections;
   try {
     detections = detect(
-      [...byId.values()].map((row) => ({
+      rows.map((row) => ({
         id: row.id,
         description: row.description,
         amount: row.amount,
@@ -142,7 +143,7 @@ export async function syncItem(deps: SyncDeps, itemId: string, event: string, de
   if (dates.at(-1)) connection.lastDataThrough = dates.at(-1) ?? null;
   let next;
   try {
-    next = pruneSuggestions(mergeDetections(state, detections, true), detections);
+    next = pruneSuggestions(attachKnownCharges(mergeDetections(state, detections, true), rows), detections);
   } catch (error) {
     throw asStep(error, "detect_failed");
   }

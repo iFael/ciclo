@@ -31,6 +31,7 @@ type Card = {
   notice: string | null;
   logoUrl?: string | null;
   logoFallback?: boolean;
+  inactiveLabel?: string | null;
 };
 type Suggestion = {
   id: string;
@@ -164,6 +165,7 @@ type Model = {
   monthlyLabel: string;
   annualLabel: string;
   cards: Card[];
+  inactiveCards?: Card[];
   suggestions: Suggestion[];
   banners: Banner[];
   footer: string;
@@ -647,7 +649,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                   <EmptyState
                     testId="empty-assinaturas"
                     legacy={model.empty}
-                    title="Nenhuma assinatura confirmada"
+                    title={(model.inactiveCards?.length ?? 0) > 0 ? "Nenhuma assinatura ativa" : "Nenhuma assinatura confirmada"}
                     hint={
                       model.empty
                         ? "Assim que uma cobrança recorrente aparecer no cartão, confirme para ela entrar no total."
@@ -742,6 +744,47 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                         <span className="whitespace-nowrap">Total {model.monthlyLabel}</span>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {(model.inactiveCards?.length ?? 0) > 0 && (
+                  <div data-testid="inactive-list" className={cn(desktop ? "mt-5" : "pt-3")}>
+                    <Eyebrow className="mb-1 text-muted-foreground">Pararam de cobrar</Eyebrow>
+                    <p className="mb-2.5 text-[13px] text-muted-foreground">
+                      Sem cobrança no último ciclo. Saíram do total e voltam sozinhas se cobrarem de novo.
+                    </p>
+                    <div className="overflow-hidden rounded-[18px] border border-dashed bg-card/60">
+                      {model.inactiveCards?.map((card) => (
+                        <article
+                          key={card.id}
+                          data-testid="inactive-card"
+                          className="flex min-w-0 flex-wrap items-center gap-3 border-b px-4 py-3.5 last:border-b-0 sm:flex-nowrap"
+                        >
+                          <div className="opacity-60">
+                            <ServiceMark
+                              src={card.logoUrl === undefined ? `/logos/${card.service}.svg` : card.logoUrl}
+                              name={card.planName}
+                              fallback={card.logoFallback === true}
+                              small
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="truncate text-[15px] font-semibold text-muted-foreground">{card.planName}</h3>
+                            <p data-testid="inactive-label" className="truncate text-[13px] text-muted-foreground">
+                              {card.inactiveLabel} · {card.priceLabel}
+                            </p>
+                          </div>
+                          <div className="flex w-full gap-2 sm:w-auto">
+                            <Button variant="outline" className="h-9 flex-1 sm:flex-none" data-testid="still-paying" onClick={() => act("still-paying", card.id)}>
+                              Ainda pago
+                            </Button>
+                            <Button variant="ghost" className="h-9 flex-1 sm:flex-none" data-testid="remove-inactive" onClick={() => setPending(card)}>
+                              Remover
+                            </Button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
                   </div>
                 )}
 

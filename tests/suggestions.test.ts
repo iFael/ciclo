@@ -43,8 +43,30 @@ describe("persistence", () => {
     expect(five[0].checks.find((check) => check.id === "amount")?.detail).toBe("R$ 59,90");
   });
 
-  it("does not suggest only two months", () => {
-    expect(detect(months("SUPERGROK", ["2026-09-12", "2026-10-12"], 165), [], TODAY)).toEqual([]);
+  it("suggests two recent months with a lower streak score than three", () => {
+    const two = detect(months("SUPERGROK", ["2026-09-12", "2026-10-12"], 165), [], TODAY);
+    expect(two).toHaveLength(1);
+    expect(two[0].suggestionLabel).toBe("2 meses seguidos");
+    expect(two[0].checks.find((check) => check.id === "streak")?.points).toBe(12);
+    const three = detect(months("SUPERGROK", RECENT, 165), [], TODAY);
+    expect(three[0].checks.find((check) => check.id === "streak")?.points).toBe(18);
+    expect(two[0].confidenceScore).toBeLessThan(three[0].confidenceScore);
+  });
+
+  it("suggests an unknown merchant only when it repeats", () => {
+    expect(detect(months("ACADEMIA FIT", ["2026-10-09"], 80), [], TODAY)).toEqual([]);
+    const twice = detect(months("ACADEMIA FIT", ["2026-09-09", "2026-10-09"], 80), [], TODAY);
+    expect(twice).toHaveLength(1);
+    expect(twice[0].service).toBe("unknown");
+  });
+
+  it("suggests a known service charged once in the last month", () => {
+    const once = detect(months("NETFLIX.COM", ["2026-10-20"], 44.9), [], TODAY);
+    expect(once).toHaveLength(1);
+    expect(once[0].suggestionLabel).toBe("1 cobrança recente");
+    expect(once[0].confirm).toBe(false);
+    expect(once[0].checked).toBe(false);
+    expect(detect(months("NETFLIX.COM", ["2026-08-20"], 44.9), [], TODAY)).toEqual([]);
   });
 
   it("does not suggest four months that stopped three months ago", () => {
@@ -52,13 +74,14 @@ describe("persistence", () => {
     expect(detect(months("NETFLIX.COM", stopped, 44.9), [], TODAY)).toEqual([]);
   });
 
-  it("allows one missed month when the streak still has at least three charges", () => {
+  it("allows one missed month inside a streak", () => {
     const withGap = ["2026-07-12", "2026-08-12", "2026-10-12"];
     const found = detect(months("CLARO FLEX", withGap, 39.9), [], "2026-10-20");
     expect(found).toHaveLength(1);
     expect(found[0].suggestionLabel).toBe("3 cobranças mensais");
-    expect(detect(months("CLARO FLEX", ["2026-06-12", "2026-08-12", "2026-10-12"], 39.9), [], "2026-10-20")).toEqual([]);
-    expect(detect(months("CLARO FLEX", ["2026-08-12", "2026-10-12"], 39.9), [], "2026-10-20")).toEqual([]);
+    const twoGaps = detect(months("ACADEMIA FIT", ["2026-06-12", "2026-08-12", "2026-10-12"], 39.9), [], "2026-10-20");
+    expect(twoGaps[0].suggestionLabel).toBe("2 cobranças mensais");
+    expect(detect(months("ACADEMIA FIT", ["2026-06-12", "2026-09-12"], 39.9), [], "2026-10-20")).toEqual([]);
   });
 
   it("suggests an annual pair inside thirteen months and skips an old one", () => {

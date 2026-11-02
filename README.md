@@ -84,9 +84,13 @@ Secrets do repositório, não da Vercel:
 
 ## O que a tela faz
 
-Uma tela, **Meus planos**. Total do mês, aproximação do ano, um cartão por plano confirmado e no máximo um aviso por vez (vermelho de conexão, amarelo de renovação ou atraso, neutro de sugestão, "Parece cancelada?" e "Ainda cobrando"). O cabeçalho mostra a idade da última leitura, com **Sincronizar agora** no menu e um botão ao lado de "Atualizado há". Abrir o app, ou voltar a ele depois de um tempo em segundo plano, sincroniza sozinho.
+Uma tela, **Meus planos**. Total do mês, aproximação do ano, um cartão por plano confirmado e no máximo um aviso por vez (vermelho de conexão, amarelo de renovação ou atraso, neutro de sugestão e "Ainda cobrando"). O cabeçalho mostra a idade da última leitura, com **Sincronizar agora** no menu e um botão ao lado de "Atualizado há". Abrir o app, ou voltar a ele depois de um tempo em segundo plano, sincroniza sozinho.
 
-Uma leitura vazia ou uma conexão vencida não cancela plano, não abaixa o total e não corta lembrete. "Parece cancelada?" só aparece se uma conexão **ativa** trouxe dado depois da data esperada e já se passaram 7 dias.
+Uma leitura vazia ou uma conexão vencida não cancela plano, não abaixa o total e não corta lembrete. Um plano confirmado vai para **Pararam de cobrar** (fora do total) só quando a última cobrança passou da janela do ciclo (45 dias, ou 13 meses no anual) e uma conexão **ativa** trouxe dado mais novo. **Ainda pago** devolve o plano ao total, e uma nova cobrança com o mesmo descritor e valor parecido o reativa sozinha.
+
+### Sugestões
+
+O usuário decide o que é plano, então a detecção é ampla e a confiança ordena a lista (`lib/rules.ts`, `lib/confidence.ts`). Entra como sugestão uma cobrança que se repete pelo menos 2 meses com valor parecido, um par anual, ou um serviço do catálogo cobrado uma vez nos últimos 45 dias. Valores abaixo de R$ 1 e movimentos de investimento ou reserva ficam de fora. A confiança aprende com as escolhas (`lib/learning.ts`): parecido com um plano confirmado ganha 15 pontos, parecido com algo recusado perde 25.
 
 `POST /api/sync` exige a sessão (o mesmo login de `/api/plans`) e relê a Pluggy como o cron, sem enviar e-mail. O servidor recusa outra leitura se a última sync tiver menos de 2 minutos. O cron diário (12:00 UTC) continua como reserva: relê 35 dias, busca o que chegou desde a última sync menos 24 horas, e manda cada aviso uma vez: cobrança em 3 dias, renovação da Pluggy em 30 e em 7 dias, `LOGIN_ERROR`, conexão vencida sem item novo, resumo semanal e resumo mensal. O e-mail não leva item id nem o descritor cru.
 
