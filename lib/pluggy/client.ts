@@ -1,5 +1,17 @@
 import type { TransactionQuery } from "@/lib/dates";
-import type { PluggyAccount, PluggyItem, PluggyPage, PluggyTransaction } from "@/lib/pluggy/types";
+import {
+  parseOrThrow,
+  parseRows,
+  pluggyAccountSchema,
+  pluggyAuthSchema,
+  pluggyItemSchema,
+  pluggyPageSchema,
+  pluggyTransactionSchema,
+  type PluggyAccount,
+  type PluggyItem,
+  type PluggyTransaction,
+} from "@/lib/pluggy/schemas";
+import { safeLog } from "@/lib/security";
 
 type FetchLike = (input: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{
   ok: boolean;
@@ -20,9 +32,9 @@ export function appendNext(firstUrl: string, next: string): string {
 }
 
 export type PluggySource = {
-  getItem(id: string): Promise<import("@/lib/pluggy/types").PluggyItem>;
-  getAccounts(itemId: string): Promise<import("@/lib/pluggy/types").PluggyAccount[]>;
-  listTransactions(query: TransactionQuery): Promise<import("@/lib/pluggy/types").PluggyTransaction[]>;
+  getItem(id: string): Promise<PluggyItem>;
+  getAccounts(itemId: string): Promise<PluggyAccount[]>;
+  listTransactions(query: TransactionQuery): Promise<PluggyTransaction[]>;
 };
 
 export class PluggyClient implements PluggySource {
@@ -42,26 +54,34 @@ export class PluggyClient implements PluggySource {
       body: JSON.stringify({ clientId: this.options.clientId, clientSecret: this.options.clientSecret }),
     });
     if (!response.ok) throw new Error("pluggy_auth_failed");
-    const body = (await response.json()) as { apiKey?: string };
-    if (!body.apiKey) throw new Error("pluggy_auth_failed");
-    this.apiKey = body.apiKey;
-    return body.apiKey;
+    const body = pluggyAuthSchema.safeParse(await response.json());
+    if (!body.success) throw new Error("pluggy_auth_failed");
+    this.apiKey = body.data.apiKey;
+    return body.data.apiKey;
   }
 
-  private async getJson<T>(url: string): Promise<T> {
+  private async getJson(url: string): Promise<unknown> {
     const apiKey = await this.key();
     const response = await this.fetchImpl(url, { headers: { "X-API-KEY": apiKey } });
     if (!response.ok) throw new Error(`pluggy_${response.status}`);
-    return (await response.json()) as T;
+    return response.json();
+  }
+
+  /** Reads one page and keeps only the rows that pass `schema`. */
+  private async getPage<T extends Parameters<typeof parseRows>[0]>(url: string, schema: T, what: string) {
+    const page = parseOrThrow(pluggyPageSchema, await this.getJson(url), `${what}_page`);
+    const { rows, dropped } = parseRows(schema, page.results ?? []);
+    if (dropped > 0) console.info(JSON.stringify(safeLog({ count: dropped, status: "dropped", errorCode: `pluggy_invalid_${what}` })));
+    return { rows, next: page.next ?? null };
   }
 
   async getItem(id: string): Promise<PluggyItem> {
-    return this.getJson<PluggyItem>(`${API}/items/${id}`);
+    return parseOrThrow(pluggyItemSchema, await this.getJson(`${API}/items/${encodeURIComponent(id)}`), "item");
   }
 
   async getAccounts(itemId: string): Promise<PluggyAccount[]> {
-    const page = await this.getJson<PluggyPage<PluggyAccount>>(`${API}/accounts?itemId=${encodeURIComponent(itemId)}`);
-    return (page.results ?? []).filter((account) => account.type === "BANK" || account.type === "CREDIT");
+    const page = await this.getPage(`${API}/accounts?itemId=${encodeURIComponent(itemId)}`, pluggyAccountSchema, "account");
+    return page.rows.filter((account) => account.type === "BANK" || account.type === "CREDIT");
   }
 
   async listTransactions(query: TransactionQuery): Promise<PluggyTransaction[]> {
@@ -78,8 +98,8 @@ export class PluggyClient implements PluggySource {
     while (nextUrl) {
       if (seen.has(nextUrl)) break;
       seen.add(nextUrl);
-      const page: PluggyPage<PluggyTransaction> = await this.getJson(nextUrl);
-      rows.push(...(page.results ?? []));
+      const page = await this.getPage(nextUrl, pluggyTransactionSchema, "transaction");
+      rows.push(...page.rows);
       if (!page.next) break;
       nextUrl = appendNext(url.toString(), page.next);
     }
