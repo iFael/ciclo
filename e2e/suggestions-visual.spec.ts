@@ -122,15 +122,22 @@ test("confirmed cards show the last charge and suggestions show a confidence bar
     await page.setViewportSize(viewport);
     await page.goto("/?aba=assinaturas");
     await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
-    await expect(page.getByTestId("tab-assinaturas")).toHaveText("Assinaturas (1)");
-    await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (3)");
+    if (size === "mobile") {
+      await expect(page.getByTestId("tab-assinaturas")).toHaveText("Assinaturas (1)");
+      await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (3)");
+    } else {
+      await expect(page.getByRole("tablist")).toHaveCount(0);
+    }
     await expect(page.getByTestId("next-charge")).toContainText("Última cobrança: 19/08");
     await expect(page.getByTestId("next-charge")).toContainText("Sem cobrança recente");
     await expect(page.getByTestId("next-charge")).not.toContainText("Próxima cobrança");
-    await expect(page.locator("#panel-assinaturas img.logo")).toBeVisible();
+    await expect(page.getByTestId("plan-card").locator("img.logo")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`${size}-${scheme}-assinaturas.png`), fullPage: true });
 
-    await page.getByTestId("tab-sugestoes").click();
+    if (size === "mobile") {
+      await expect(page.getByTestId("suggestion-peek")).toHaveCount(3);
+      await page.getByTestId("tab-sugestoes").click();
+    }
     await expect(page.getByTestId("panel-sugestoes")).toBeVisible();
     const cards = page.getByTestId("suggestion");
     await expect(cards).toHaveCount(3);
@@ -140,7 +147,7 @@ test("confirmed cards show the last charge and suggestions show a confidence bar
     await expect(cards.nth(0)).toContainText("5 meses seguidos");
     await expect(cards.nth(1)).toContainText("Suno");
     await expect(cards.nth(2)).toContainText("Academia Fit");
-    await expect(page.locator("#panel-sugestoes img.logo").first()).toBeVisible();
+    await expect(cards.first().locator("img.logo")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`${size}-${scheme}-sugestoes.png`), fullPage: true });
   }
 });
