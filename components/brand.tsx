@@ -1,3 +1,6 @@
+"use client";
+
+import { useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -5,8 +8,16 @@ import { cn } from "@/lib/utils";
  * `animated` keeps the arrow going around and the coin settling each turn.
  */
 export function CycleMark({ className = "size-5", animated = false }: { className?: string; animated?: boolean | "loading" }) {
+  // Every mark starts from the same clock (the wall time modulo its cycle), so all the logos on screen turn together.
+  const period = animated === "loading" ? 1900 : 10000;
+  const sync = useCallback(
+    (node: SVGSVGElement | null) => {
+      if (node && animated) node.style.setProperty("--logo-delay", `-${Date.now() % period}ms`);
+    },
+    [animated, period],
+  );
   return (
-    <svg className={cn(className, animated === "loading" ? "logo-loading" : animated && "logo-live")} viewBox="0 0 64 64" aria-hidden="true">
+    <svg ref={sync} className={cn(className, animated === "loading" ? "logo-loading" : animated && "logo-live")} viewBox="0 0 64 64" aria-hidden="true">
       <g className="logo-ring">
         <path d="M50.3 19.8A22 22 0 1 0 53.5 36.9" fill="none" stroke="currentColor" strokeWidth="6.5" strokeLinecap="round" />
         <path d="M44.7 22.4L51.6 21.3L52.8 9.4" fill="none" stroke="currentColor" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
