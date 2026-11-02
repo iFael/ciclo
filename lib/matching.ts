@@ -1,5 +1,5 @@
 import { buildConfidence, type Confidence, type ConfidenceCheck } from "@/lib/confidence";
-import { CATALOG, isForeignService, planNameFor, serviceInfo } from "@/lib/catalog";
+import { catalog, isForeignService, planNameFor, serviceInfo } from "@/lib/catalog";
 import { diffDays, saoPauloCivilDate, todayInSaoPaulo } from "@/lib/dates";
 import { formatBrl, formatDayMonth, round2 } from "@/lib/format";
 import { excludedKind, isGenericDescriptor, isIofRotativo, type TxSignals } from "@/lib/noise";
@@ -13,7 +13,7 @@ import {
   MIN_MONTHLY_OCCURRENCES,
   MONTHLY_GRACE_DAYS,
 } from "@/lib/rules";
-import { descriptorWords, matchesPattern, normalizeDescriptor } from "@/lib/text";
+import { descriptorWords, hasPhrase, matchesPattern, merchantDescriptor, merchantWords, normalizeDescriptor } from "@/lib/text";
 
 export { isIofRotativo, excludedKind, isGenericDescriptor } from "@/lib/noise";
 export { normalizeDescriptor, descriptorWords } from "@/lib/text";
@@ -58,13 +58,23 @@ export function withinPercent(base: number, next: number, percent: number): bool
   return Math.abs(next - base) / Math.abs(base) <= percent + 1e-9;
 }
 
+/**
+ * The day the charge happened. A card purchase carries its own timestamp,
+ * but an installment repeats the original purchase timestamp on every
+ * month's line: those use the statement date, so each month counts.
+ */
 export function chargeDateOf(tx: {
   date: string;
-  creditCardMetadata?: { transactionDateTime?: string } | null;
+  creditCardMetadata?: { transactionDateTime?: string; installmentNumber?: number; totalInstallments?: number } | null;
 }): string {
-  const stamped = tx.creditCardMetadata?.transactionDateTime;
-  if (stamped) return saoPauloCivilDate(stamped);
-  return tx.date.slice(0, 10);
+  const posted = tx.date.slice(0, 10);
+  const meta = tx.creditCardMetadata;
+  const stamped = meta?.transactionDateTime;
+  if (!stamped) return posted;
+  if ((meta?.totalInstallments ?? 1) > 1) return posted;
+  const civil = saoPauloCivilDate(stamped);
+  if (Math.abs(diffDays(civil, posted)) > 20) return posted;
+  return civil;
 }
 
 export function merchantIgnoreToken(merchantKey: string): string {
@@ -74,8 +84,12 @@ export function merchantIgnoreToken(merchantKey: string): string {
 export function classifyDescriptor(description: string): string | null {
   const words = descriptorWords(description);
   if (words.includes("OPENAI") && words.includes("API")) return null;
-  for (const service of CATALOG) {
-    if (service.patterns.some((phrase) => matchesPattern(words, phrase))) return service.id;
+  const merchant = merchantWords(description);
+  if (hasPhrase(words, ["X", "AI"])) return "grok";
+  for (const service of catalog()) {
+    if (service.patterns.some((phrase) => matchesPattern(words, phrase) || (merchant.length > 0 && matchesPattern(merchant, phrase)))) {
+      return service.id;
+    }
   }
   return null;
 }
@@ -90,6 +104,8 @@ export function parseIgnored(ignored: string[]): { merchants: Set<string>; descr
   return { merchants, descriptors };
 }
 
+const WIDE_GAP_MIN_MONTHS = 4;
+
 type MonthStreak = { months: string[]; gapUsed: boolean };
 
 function monthIndex(month: string): number {
@@ -101,16 +117,19 @@ function monthIndex(month: string): number {
 export function monthlyStreak(dates: string[]): MonthStreak | null {
   const months = [...new Set(dates.map((date) => date.slice(0, 7)))].sort();
   if (months.length < MIN_MONTHLY_OCCURRENCES) return null;
-  const included = [months[months.length - 1]];
+  let included = [months[months.length - 1]];
   let gapUsed = false;
+  let wideGapAt: number | null = null;
   let previous = months[months.length - 1];
   for (let index = months.length - 2; index >= 0; index -= 1) {
     const delta = monthIndex(previous) - monthIndex(months[index]);
     if (delta === 1) {
       included.push(months[index]);
       previous = months[index];
-    } else if (delta === 2 && !gapUsed) {
+    } else if ((delta === 2 || delta === 3) && !gapUsed) {
+      // One hole: a missed month, or two when bank feeds skip a period.
       gapUsed = true;
+      if (delta === 3) wideGapAt = included.length;
       included.push(months[index]);
       previous = months[index];
     } else if (delta === 0) {
@@ -118,6 +137,11 @@ export function monthlyStreak(dates: string[]): MonthStreak | null {
     } else {
       break;
     }
+  }
+  // A two-month hole only counts inside a long, established streak.
+  if (wideGapAt !== null && included.length < WIDE_GAP_MIN_MONTHS) {
+    included = included.slice(0, wideGapAt);
+    gapUsed = false;
   }
   if (included.length < MIN_MONTHLY_OCCURRENCES) return null;
   return { months: included.sort(), gapUsed };
@@ -136,6 +160,8 @@ export function annualDates(dates: string[]): string[] | null {
     }
   }
   if (picked.length < MIN_ANNUAL_OCCURRENCES) return null;
+  // Same-price charges between the yearly ones mean a monthly plan with holes.
+  if (sorted.filter((date) => date >= picked[picked.length - 1]).length > picked.length) return null;
   return picked.sort();
 }
 
@@ -355,10 +381,10 @@ function planTitle(service: string | null, descriptor: string, amount: number): 
   return planNameFor(service, amount);
 }
 
-function detectionFromCluster(txs: CandidateTx[], service: string | null, today: string): Detection | null {
-  const summary = summarize(txs, today, Boolean(service && service !== "apple"));
+function detectionFromCluster(txs: CandidateTx[], service: string | null, today: string, known = false): Detection | null {
+  const summary = summarize(txs, today, known || Boolean(service && service !== "apple"));
   if (!summary.passed || !summary.last) return null;
-  const descriptor = normalizeDescriptor(txs[0]?.description ?? "");
+  const descriptor = merchantDescriptor(txs[0]?.description ?? "");
   const info = service ? serviceInfo(service) : undefined;
   const amount = round2(summary.medianAmount);
   const confidence = confidenceFor({
@@ -393,30 +419,93 @@ function detectionFromCluster(txs: CandidateTx[], service: string | null, today:
   };
 }
 
-export function detect(transactions: CandidateTx[], ignored: string[] = [], today = todayInSaoPaulo()): Detection[] {
+/** "APPLE.COM/BILL" and its spellings: the App Store, not one service. */
+export function isAppleBill(description: string): boolean {
+  const words = descriptorWords(description);
+  return (
+    hasPhrase(words, ["APPLE", "COM", "BILL"]) ||
+    words.includes("APPLECOMBILL") ||
+    hasPhrase(words, ["ITUNES", "COM", "BILL"]) ||
+    (words.length <= 2 && words[0] === "ITUNES")
+  );
+}
+
+/**
+ * A merchant the user already confirmed. Its charges are recognized from the
+ * statement text alone, even a single charge after a pause, with no catalog
+ * row: this is how the app learns the user's routine.
+ */
+export type KnownMerchant = { merchantKey: string; service: string; descriptors: string[] };
+
+export function knownMerchants(subscriptions: { status: string; merchantKey: string; service: string; descriptors: string[] }[]): KnownMerchant[] {
+  return subscriptions
+    .filter((item) => (item.status === "confirmed" || item.status === "cancelled") && item.descriptors.length > 0)
+    .map((item) => ({
+      merchantKey: item.merchantKey,
+      service: item.service,
+      descriptors: [...new Set(item.descriptors.map((descriptor) => merchantDescriptor(descriptor)))],
+    }));
+}
+
+export function detect(
+  transactions: CandidateTx[],
+  ignored: string[] = [],
+  today = todayInSaoPaulo(),
+  known: KnownMerchant[] = [],
+): Detection[] {
   const { merchants, descriptors } = parseIgnored(ignored);
+  const knownBy = new Map<string, KnownMerchant>();
+  for (const merchant of known) for (const descriptor of merchant.descriptors) knownBy.set(descriptor, merchant);
   const usable = transactions.filter((tx) => {
     if (excludedKind(tx)) return false;
+    if (isAppleBill(tx.description)) return !merchants.has(`apple:${Math.round(tx.amount * 100)}`);
     const service = classifyDescriptor(tx.description);
     if (!service && isGenericDescriptor(tx.description)) return false;
     if (descriptors.has(normalizeDescriptor(tx.description))) return false;
     return true;
   });
 
-  const groups = new Map<string, { service: string | null; txs: CandidateTx[] }>();
+  const groups = new Map<string, { service: string | null; known: KnownMerchant | null; txs: CandidateTx[] }>();
   for (const tx of usable) {
+    if (isAppleBill(tx.description)) {
+      // Each App Store subscription bills its own fixed price under the same text.
+      const key = `apple:${Math.round(tx.amount * 100)}`;
+      const group = groups.get(key) ?? { service: "apple", known: null, txs: [] };
+      group.txs.push(tx);
+      groups.set(key, group);
+      continue;
+    }
     const service = classifyDescriptor(tx.description);
-    const key = service ?? `raw:${normalizeDescriptor(tx.description)}`;
-    const group = groups.get(key) ?? { service, txs: [] };
+    const mine = knownBy.get(merchantDescriptor(tx.description)) ?? null;
+    const key = mine ? `known:${mine.merchantKey}` : (service ?? `raw:${merchantDescriptor(tx.description)}`);
+    const group = groups.get(key) ?? { service: mine && mine.service !== "unknown" ? mine.service : service, known: mine, txs: [] };
     group.txs.push(tx);
     groups.set(key, group);
   }
 
   const found: Detection[] = [];
-  for (const group of groups.values()) {
+  for (const [groupKey, group] of groups) {
     const clusters = clusterStable(group.txs)
-      .map((cluster) => detectionFromCluster(cluster, group.service, today))
+      .map((cluster) => detectionFromCluster(cluster, group.service, today, Boolean(group.known)))
       .filter((item): item is Detection => item !== null);
+    if (group.service === "apple") {
+      const best = clusters.sort((a, b) => b.expectedChargeDate.localeCompare(a.expectedChargeDate))[0];
+      if (best) {
+        best.merchantKey = groupKey;
+        best.planName = "Assinatura via Apple";
+        found.push(best);
+      }
+      continue;
+    }
+    if (group.known) {
+      clusters.sort((a, b) => b.expectedChargeDate.localeCompare(a.expectedChargeDate));
+      const best = clusters[0];
+      if (best && !merchants.has(group.known.merchantKey)) {
+        best.merchantKey = group.known.merchantKey;
+        found.push(best);
+      }
+      continue;
+    }
     if (group.service) {
       clusters.sort((a, b) => b.expectedChargeDate.localeCompare(a.expectedChargeDate));
       const best = clusters[0];

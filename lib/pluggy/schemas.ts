@@ -46,6 +46,7 @@ export const pluggyTransactionSchema = z.object({
   date: isoDate,
   accountId: optional(text),
   currencyCode: optional(text),
+  amountInAccountCurrency: amount.nullish(),
   type: optional(text),
   category: text.nullish(),
   operationType: text.nullish(),
@@ -53,6 +54,8 @@ export const pluggyTransactionSchema = z.object({
     .object({
       transactionDateTime: optional(isoDate),
       payeeMCC: optional(z.number()),
+      installmentNumber: optional(z.number()),
+      totalInstallments: optional(z.number()),
     })
     .nullish(),
 });

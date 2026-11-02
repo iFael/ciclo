@@ -50,12 +50,26 @@ export function itemIdsForRun(connections: Connection[], seed?: string): string[
   return connections.filter((connection) => connection.status !== "replaced").map((connection) => connection.itemId);
 }
 
+/**
+ * The amount as a positive charge in reais.
+ * - Bank accounts send debits as negative numbers (a card-debit purchase,
+ *   an automatic debit). A DEBIT is a charge whatever its sign.
+ * - Foreign charges use the converted amount when Pluggy sends it.
+ */
+export function chargeAmount(tx: PluggyTransaction): number {
+  const foreign = Boolean(tx.currencyCode && tx.currencyCode !== "BRL");
+  const base = foreign && typeof tx.amountInAccountCurrency === "number" && tx.amountInAccountCurrency !== 0 ? tx.amountInAccountCurrency : tx.amount;
+  if ((tx.type ?? "").toUpperCase() === "DEBIT") return Math.abs(base);
+  return base;
+}
+
 export function mapPluggyTransaction(tx: PluggyTransaction, itemId: string, accountId: string): StoredTx | null {
   const description = tx.description ?? "";
+  const amount = chargeAmount(tx);
   if (
     excludedKind({
       description,
-      amount: tx.amount,
+      amount,
       type: tx.type,
       category: tx.category,
       operationType: tx.operationType,
@@ -69,7 +83,7 @@ export function mapPluggyTransaction(tx: PluggyTransaction, itemId: string, acco
     id: tx.id,
     itemId,
     accountId: tx.accountId || accountId,
-    amount: tx.amount,
+    amount,
     description,
     chargeDate: chargeDateOf(tx),
     foreignCharge,

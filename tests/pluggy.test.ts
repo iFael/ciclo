@@ -58,10 +58,12 @@ describe("pluggy client", () => {
 
   it("splits incremental and reread queries", () => {
     const first = transactionQueries({ accountId: "acc", lastSyncedAt: null, today: "2026-11-01" });
-    const next = transactionQueries({ accountId: "acc", lastSyncedAt: "2026-11-01T12:00:00.000Z", today: "2026-11-01" });
+    const next = transactionQueries({ accountId: "acc", lastSyncedAt: "2026-11-03T12:00:00.000Z", today: "2026-11-03" });
+    const beforeRulesChange = transactionQueries({ accountId: "acc", lastSyncedAt: "2026-11-01T12:00:00.000Z", today: "2026-11-03" });
     expect(first).toEqual([{ accountId: "acc", dateFrom: "2025-09-01" }]);
-    expect(next[0]).toEqual({ accountId: "acc", createdAtFrom: "2026-10-31T12:00:00.000Z" });
-    expect(next[1]).toEqual({ accountId: "acc", dateFrom: "2026-09-27" });
+    expect(next[0]).toEqual({ accountId: "acc", createdAtFrom: "2026-11-02T12:00:00.000Z" });
+    expect(next[1]).toEqual({ accountId: "acc", dateFrom: "2026-09-29" });
+    expect(beforeRulesChange).toEqual([{ accountId: "acc", dateFrom: "2025-09-03" }]);
     for (const query of [...first, ...next]) {
       expect(Boolean(query.dateFrom && query.createdAtFrom)).toBe(false);
     }
@@ -81,7 +83,7 @@ describe("sync", () => {
           connectorId: "bank",
           status: "active",
           consentExpiresAt: "2027-06-01T00:00:00.000Z",
-          lastSyncedAt: "2026-10-20T12:00:00.000Z",
+          lastSyncedAt: "2026-11-02T12:00:00.000Z",
           lastErrorCode: null,
           lastSyncHadData: false,
           lastDataThrough: null,

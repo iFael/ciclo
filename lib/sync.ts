@@ -1,7 +1,7 @@
 import { attachKnownCharges, mergeDetections, pruneSuggestions } from "@/lib/actions";
 import { todayInSaoPaulo, transactionQueries, windowStart } from "@/lib/dates";
 import { ensureLogos } from "@/lib/logos/resolve";
-import { detect } from "@/lib/matching";
+import { detect, knownMerchants } from "@/lib/matching";
 import { itemIdsForRun, mapPluggyTransaction, replaceSiblings, upsertConnectionFromItem } from "@/lib/pluggy/map";
 import type { PluggySource } from "@/lib/pluggy/client";
 import { safeLog } from "@/lib/security";
@@ -133,6 +133,7 @@ export async function syncItem(deps: SyncDeps, itemId: string, event: string, de
       })),
       state.ignoredDescriptors,
       today,
+      knownMerchants(state.subscriptions),
     );
   } catch (error) {
     throw asStep(error, "detect_failed");

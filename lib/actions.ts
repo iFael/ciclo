@@ -1,4 +1,5 @@
 import { latestChargeDate } from "@/lib/charges";
+import { merchantDescriptor } from "@/lib/text";
 import { isForeignService, planNameFor, serviceInfo } from "@/lib/catalog";
 import { formatBrl } from "@/lib/format";
 import { merchantIgnoreToken, normalizeDescriptor, withinPercent, type Detection } from "@/lib/matching";
@@ -264,10 +265,10 @@ export function attachKnownCharges(
   const linked = new Set(state.charges.map((charge) => charge.transactionId));
   for (const subscription of state.subscriptions) {
     if (subscription.status !== "confirmed" || subscription.descriptors.length === 0) continue;
-    const descriptors = new Set(subscription.descriptors.map((item) => normalizeDescriptor(item)));
+    const descriptors = new Set(subscription.descriptors.map((item) => merchantDescriptor(item)));
     for (const tx of transactions) {
       if (linked.has(tx.id) || tx.amount <= 0) continue;
-      if (!descriptors.has(normalizeDescriptor(tx.description))) continue;
+      if (!descriptors.has(merchantDescriptor(tx.description))) continue;
       if (!withinPercent(subscription.amount, tx.amount, 0.15)) continue;
       if (state.charges.some((charge) => charge.subscriptionId === subscription.id && charge.chargeDate === tx.chargeDate)) continue;
       state.charges.push({

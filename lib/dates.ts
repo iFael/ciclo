@@ -67,12 +67,19 @@ export type TransactionQuery = {
   createdAtFrom?: string;
 };
 
+/**
+ * A connection last read before this moment is read again from the start of
+ * the history window. Bump it when the import rules change, so rows the old
+ * rules dropped (bank debits, intermediary descriptors) come back.
+ */
+export const FULL_REREAD_BEFORE = "2026-11-02T06:00:00.000Z";
+
 export function transactionQueries(input: {
   accountId: string;
   lastSyncedAt: string | null;
   today: string;
 }): TransactionQuery[] {
-  if (!input.lastSyncedAt) {
+  if (!input.lastSyncedAt || input.lastSyncedAt < FULL_REREAD_BEFORE) {
     return [{ accountId: input.accountId, dateFrom: addMonthsClamp(input.today, -HISTORY_MONTHS) }];
   }
   const created = new Date(input.lastSyncedAt);

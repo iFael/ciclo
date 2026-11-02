@@ -92,6 +92,16 @@ Uma leitura vazia ou uma conexão vencida não cancela plano, não abaixa o tota
 
 O usuário decide o que é plano, então a detecção é ampla e a confiança ordena a lista (`lib/rules.ts`, `lib/confidence.ts`). Entra como sugestão uma cobrança que se repete pelo menos 2 meses com valor parecido, um par anual, ou um serviço do catálogo cobrado uma vez nos últimos 45 dias. Valores abaixo de R$ 1 e movimentos de investimento ou reserva ficam de fora. A confiança aprende com as escolhas (`lib/learning.ts`): parecido com um plano confirmado ganha 15 pontos, parecido com algo recusado perde 25.
 
+O texto da fatura é lido sem o intermediário: em "MERCADOPAGO*IFOOD" ou "PAYPAL *GRAN" vale o comerciante depois do prefixo. Débito em conta (valor negativo na Pluggy) conta como cobrança, e cobrança em moeda estrangeira usa o valor convertido quando a Pluggy manda.
+
+### Catálogo e aprendizado
+
+O catálogo de serviços fica na tabela `catalog_services` (migration `20261102160000_catalog_table.sql`), não no código: para incluir um serviço ou um jeito novo de ele aparecer na fatura, edite a linha no Table Editor do Supabase, sem deploy. O catálogo só dá nome, logo e link e deixa um serviço conhecido aparecer com uma cobrança. Todo plano que você confirma vira um comerciante conhecido: a próxima cobrança dele é reconhecida sozinha, mesmo isolada ou com outro valor.
+
+### Busca no extrato
+
+A lupa no topo busca nos 14 meses guardados, agrupa por comerciante e mostra quantas cobranças, em quantos meses, valores e a última data. **É assinatura** cria o plano com essas cobranças e ensina o comerciante ao app.
+
 `POST /api/sync` exige a sessão (o mesmo login de `/api/plans`) e relê a Pluggy como o cron, sem enviar e-mail. O servidor recusa outra leitura se a última sync tiver menos de 2 minutos. O cron diário (12:00 UTC) continua como reserva: relê 35 dias, busca o que chegou desde a última sync menos 24 horas, e manda cada aviso uma vez: cobrança em 3 dias, renovação da Pluggy em 30 e em 7 dias, `LOGIN_ERROR`, conexão vencida sem item novo, resumo semanal e resumo mensal. O e-mail não leva item id nem o descritor cru.
 
 ## Desenvolvimento

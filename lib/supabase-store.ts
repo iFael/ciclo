@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { setCatalog, type CatalogRow } from "@/lib/catalog";
 import { ConfigError } from "@/lib/security";
 import { dedupeStoredTransactions, emptyState, type Store } from "@/lib/store";
 import type { AppState, Charge, Connection, ServiceLogo, StoredTx, Subscription, SubscriptionStatus } from "@/lib/types";
@@ -25,12 +26,16 @@ export function createSupabaseStore(): Store {
   return {
     async load() {
       const client = admin();
-      const [connections, subscriptions, charges, ignored] = await Promise.all([
+      const [connections, subscriptions, charges, ignored, services] = await Promise.all([
         client.from("connections").select("*"),
         client.from("subscriptions").select("*"),
         client.from("charges").select("*"),
         client.from("ignored_descriptors").select("descriptor"),
+        client.from("catalog_services").select("*").eq("active", true),
       ]);
+      // The catalog only names things. If the table is missing or unreadable,
+      // keep the last catalog this process loaded and carry on.
+      if (!services.error && services.data) setCatalog(services.data.map(mapCatalogRow));
       await fail(connections.error);
       await fail(subscriptions.error);
       await fail(charges.error);
@@ -304,5 +309,20 @@ function chargeRow(row: Charge): Record<string, unknown> {
     amount: row.amount,
     transaction_id: row.transactionId,
     resolved: row.resolved,
+  };
+}
+
+function mapCatalogRow(row: Record<string, unknown>): CatalogRow {
+  return {
+    id: String(row.id),
+    serviceName: String(row.service_name ?? row.id),
+    company: String(row.company ?? ""),
+    manageUrl: typeof row.manage_url === "string" ? row.manage_url : "",
+    cancelUrl: typeof row.cancel_url === "string" ? row.cancel_url : "",
+    plans: Array.isArray(row.plans) ? (row.plans as CatalogRow["plans"]) : [],
+    patterns: Array.isArray(row.patterns) ? (row.patterns as string[][]) : [],
+    logo: typeof row.logo === "string" ? row.logo : "",
+    domains: Array.isArray(row.domains) ? (row.domains as string[]) : [],
+    foreign: row.is_foreign === true,
   };
 }

@@ -125,11 +125,31 @@ describe("noise and generic descriptors", () => {
     expect([...kinds]).toEqual(["juros", "multa", "pix", "transfer", "installment", "refund", "iof", "boleto", "fee", "credit"]);
   });
 
-  it("never suggests generic Apple or Google descriptors", () => {
+  it("never suggests generic Google descriptors and groups Apple bills as Apple", () => {
     const dates = ["2026-05-04", "2026-06-04", "2026-07-04", "2026-08-04", "2026-09-04", "2026-10-04"];
-    for (const description of ["Assinatura via Apple", "APPLE.COM/BILL", "Google Play", "APPLECOMBILL"]) {
+    for (const description of ["Assinatura via Apple", "Google Play"]) {
       expect(detect(months(description, dates, 21.9, "g"), [], TODAY), description).toEqual([]);
     }
+    for (const description of ["APPLE.COM/BILL", "APPLECOMBILL"]) {
+      expect(detect(months(description, dates, 21.9, "g"), [], TODAY).map((item) => item.planName), description).toEqual(["Assinatura via Apple"]);
+    }
+  });
+
+  it("recognizes iFood Clube behind the IFD intermediary", () => {
+    const found = detect(months("IFD*iFood", RECENT, 7.95, "ifd"), [], TODAY);
+    expect(found.map((item) => item.service)).toEqual(["ifood-clube"]);
+  });
+
+  it("keeps a monthly plan monthly across a two-month hole in the feed", () => {
+    const dates = ["2025-11-22", "2026-02-22", "2026-03-22", "2026-04-22", "2026-05-22", "2026-06-22", "2026-07-22", "2026-10-22"];
+    const found = detect(months("IFD*iFood", dates, 7.95, "hole"), [], TODAY);
+    expect(found).toHaveLength(1);
+    expect(found[0].service).toBe("ifood-clube");
+    expect(found[0].cadence).toBe("monthly");
+    expect(found[0].suggestionLabel).toBe("7 cobranças mensais");
+  });
+
+  it("keeps a named Apple service apart", () => {
     const named = detect(months("APPLE ONE", RECENT, 34.9), [], TODAY);
     expect(named.map((item) => item.service)).toEqual(["apple-one"]);
   });

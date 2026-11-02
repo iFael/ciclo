@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, attachKnownCharges, mergeDetections } from "@/lib/actions";
-import { CATALOG, planNameFor } from "@/lib/catalog";
+import { catalog, planNameFor } from "@/lib/catalog";
 import { addMonthsClamp, diffDays } from "@/lib/dates";
 import { createMemoryStore } from "@/lib/memory-store";
 import {
@@ -89,7 +89,16 @@ describe("matching", () => {
       ["PIX CLAUDETE", null],
       ["CLAUDE", null],
       ["OPENAI *API USAGE", null],
-      ["OPENAI", null],
+      ["OPENAI", "chatgpt"],
+      ["OPENAI SAN FRANCISCO", "chatgpt"],
+      ["ANTHROPIC PBC", "claude"],
+      ["CLAUDE.AI SUBSCRIPTION", "claude"],
+      ["X.AI LLC", "grok"],
+      ["MERCADOPAGO*IFOOD CLUBE", "ifood-clube"],
+      ["MP *IFOODCLUB", null],
+      ["PAYPAL *NETFLIX", "netflix"],
+      ["EBANX*SPOTIFY", "spotify"],
+      ["LOJA X", null],
       ["IOF do rotativo", null],
     ];
     for (const [description, expected] of table) {
@@ -178,14 +187,18 @@ describe("matching", () => {
     expect(jump).toEqual([]);
   });
 
-  it("never suggests a generic Apple bill, even across six months", () => {
+  it("groups a recurring Apple bill by amount as one Apple suggestion", () => {
     const months = ["2026-05-04", "2026-06-04", "2026-07-04", "2026-08-04", "2026-09-04", "2026-10-04"];
     const found = detect(
-      months.map((chargeDate, index) => tx({ id: `a${index}`, description: "APPLE.COM/BILL", amount: 21.9, chargeDate })),
+      [
+        ...months.map((chargeDate, index) => tx({ id: `a${index}`, description: "APPLE.COM/BILL", amount: 21.9, chargeDate })),
+        tx({ id: "once", description: "APPLE.COM/BILL", amount: 4.9, chargeDate: "2026-09-20" }),
+      ],
       [],
       "2026-11-01",
     );
-    expect(found).toEqual([]);
+    expect(found.map((item) => [item.merchantKey, item.planName])).toEqual([["apple:2190", "Assinatura via Apple"]]);
+    expect(detect(months.map((chargeDate, index) => tx({ id: `a${index}`, description: "APPLE.COM/BILL", amount: 21.9, chargeDate })), ["merchant:apple:2190"], "2026-11-01")).toEqual([]);
   });
 
   it("does not auto-confirm a known service; one charge or three months stay a suggestion", () => {
@@ -215,7 +228,7 @@ describe("matching", () => {
   });
 
   it("keeps plan names inside a 15% FX move and uses the service name outside a band", () => {
-    for (const service of CATALOG) {
+    for (const service of catalog()) {
       for (const band of service.plans) {
         expect(planNameFor(service.id, band.referenceBrl * 0.85)).toBe(band.name);
         expect(planNameFor(service.id, band.referenceBrl * 1.15)).toBe(band.name);
@@ -243,9 +256,17 @@ describe("charge dates", () => {
       "item",
       "acc",
     );
-    expect(row?.chargeDate).toBe("2026-07-19");
+    expect(row?.chargeDate).toBe("2026-10-15");
     expect(JSON.stringify(row)).not.toContain("payeeMCC");
     expect(JSON.stringify(row)).not.toContain("creditCard");
+  });
+
+  it("uses the posting date for installments and stale purchase stamps", () => {
+    const stamp = { transactionDateTime: "2026-05-10T15:00:00Z" };
+    expect(chargeDateOf({ date: "2026-09-10T00:00:00.000Z", creditCardMetadata: { ...stamp, totalInstallments: 6, installmentNumber: 5 } })).toBe("2026-09-10");
+    expect(chargeDateOf({ date: "2026-05-10T00:00:00.000Z", creditCardMetadata: { ...stamp, totalInstallments: 6, installmentNumber: 1 } })).toBe("2026-05-10");
+    expect(chargeDateOf({ date: "2026-08-10T00:00:00.000Z", creditCardMetadata: stamp })).toBe("2026-08-10");
+    expect(chargeDateOf({ date: "2026-05-12T00:00:00.000Z", creditCardMetadata: stamp })).toBe("2026-05-10");
   });
 
   it.skip("22:30 America/Sao_Paulo pending confirmation", () => {

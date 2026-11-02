@@ -1,0 +1,684 @@
+[
+  {
+    "id": "chatgpt",
+    "serviceName": "ChatGPT",
+    "company": "OpenAI",
+    "manageUrl": "https://chatgpt.com/#settings/Subscription",
+    "cancelUrl": "https://help.openai.com/en/articles/7232927-canceling-your-chatgpt-subscription",
+    "plans": [
+      {
+        "name": "ChatGPT Go",
+        "brl": 44,
+        "usd": 8
+      },
+      {
+        "name": "ChatGPT Plus",
+        "brl": 110,
+        "usd": 20
+      },
+      {
+        "name": "ChatGPT Pro 100",
+        "brl": 550,
+        "usd": 100
+      },
+      {
+        "name": "ChatGPT Pro 200",
+        "brl": 1100,
+        "usd": 200
+      },
+      {
+        "name": "ChatGPT Pro 500",
+        "brl": 2750,
+        "usd": 500
+      }
+    ],
+    "patterns": [
+      [
+        "OPENAI",
+        "CHATGPT"
+      ],
+      [
+        "CHATGPT"
+      ],
+      [
+        "OPENAI"
+      ]
+    ],
+    "logo": "/logos/chatgpt.svg",
+    "domains": [
+      "chatgpt.com",
+      "openai.com"
+    ],
+    "foreign": true
+  },
+  {
+    "id": "claude",
+    "serviceName": "Claude",
+    "company": "Anthropic",
+    "manageUrl": "https://claude.ai/settings/billing",
+    "cancelUrl": "https://support.claude.com/en/articles/8325617-cancel-your-pro-or-max-subscription",
+    "plans": [
+      {
+        "name": "Claude Pro",
+        "brl": 110,
+        "usd": 20
+      },
+      {
+        "name": "Claude Max",
+        "brl": 550,
+        "usd": 100
+      },
+      {
+        "name": "Claude Ultra",
+        "brl": 1100,
+        "usd": 200
+      }
+    ],
+    "patterns": [
+      [
+        "ANTHROPIC",
+        "CLAUDE"
+      ],
+      [
+        "CLAUDE",
+        "AI"
+      ],
+      [
+        "ANTHROPIC"
+      ],
+      [
+        "CLAUDEAI"
+      ]
+    ],
+    "logo": "/logos/claude.svg",
+    "domains": [
+      "claude.ai",
+      "anthropic.com"
+    ],
+    "foreign": true
+  },
+  {
+    "id": "grok",
+    "serviceName": "Grok",
+    "company": "xAI",
+    "manageUrl": "https://grok.com/dashboard/billing",
+    "cancelUrl": "https://grok.com/dashboard/billing",
+    "plans": [
+      {
+        "name": "Grok Plus",
+        "brl": 44,
+        "usd": 8
+      },
+      {
+        "name": "SuperGrok",
+        "brl": 165,
+        "usd": 30
+      },
+      {
+        "name": "Grok Super",
+        "brl": 550,
+        "usd": 100
+      },
+      {
+        "name": "Grok Ultra",
+        "brl": 1100,
+        "usd": 200
+      }
+    ],
+    "patterns": [
+      [
+        "SUPERGROK"
+      ],
+      [
+        "GROK",
+        "XAI"
+      ],
+      [
+        "GROK"
+      ],
+      [
+        "XAI"
+      ]
+    ],
+    "logo": "/logos/grok.svg",
+    "domains": [
+      "grok.com",
+      "x.ai"
+    ],
+    "foreign": true
+  },
+  {
+    "id": "netflix",
+    "serviceName": "Netflix",
+    "company": "Netflix",
+    "manageUrl": "https://www.netflix.com/account",
+    "cancelUrl": "https://www.netflix.com/cancelplan",
+    "plans": [
+      {
+        "name": "Netflix Padrão",
+        "brl": 44.9
+      }
+    ],
+    "patterns": [
+      [
+        "NETFLIX"
+      ]
+    ],
+    "logo": "/logos/netflix.svg",
+    "domains": [
+      "netflix.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "spotify",
+    "serviceName": "Spotify",
+    "company": "Spotify",
+    "manageUrl": "https://www.spotify.com/account/subscription/",
+    "cancelUrl": "https://www.spotify.com/account/subscription/",
+    "plans": [
+      {
+        "name": "Spotify Premium",
+        "brl": 21.9
+      }
+    ],
+    "patterns": [
+      [
+        "SPOTIFY"
+      ]
+    ],
+    "logo": "/logos/spotify.svg",
+    "domains": [
+      "spotify.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "youtube",
+    "serviceName": "YouTube Premium",
+    "company": "Google",
+    "manageUrl": "https://www.youtube.com/paid_memberships",
+    "cancelUrl": "https://www.youtube.com/paid_memberships",
+    "plans": [
+      {
+        "name": "YouTube Premium",
+        "brl": 28.9
+      }
+    ],
+    "patterns": [
+      [
+        "YOUTUBE",
+        "PREMIUM"
+      ],
+      [
+        "YOUTUBEPREMIUM"
+      ],
+      [
+        "YOUTUBE",
+        "MEMBERSHIP"
+      ]
+    ],
+    "logo": "/logos/youtube.svg",
+    "domains": [
+      "youtube.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "prime",
+    "serviceName": "Amazon Prime",
+    "company": "Amazon",
+    "manageUrl": "https://www.amazon.com.br/gp/primecentral",
+    "cancelUrl": "https://www.amazon.com.br/gp/primecentral",
+    "plans": [
+      {
+        "name": "Amazon Prime",
+        "brl": 19.9
+      }
+    ],
+    "patterns": [
+      [
+        "AMAZON",
+        "PRIME"
+      ],
+      [
+        "AMZN",
+        "PRIME"
+      ],
+      [
+        "PRIME",
+        "VIDEO"
+      ]
+    ],
+    "logo": "/logos/prime.svg",
+    "domains": [
+      "amazon.com.br",
+      "primevideo.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "disney",
+    "serviceName": "Disney+",
+    "company": "Disney",
+    "manageUrl": "https://www.disneyplus.com/account/subscription",
+    "cancelUrl": "https://www.disneyplus.com/account/subscription",
+    "plans": [
+      {
+        "name": "Disney+",
+        "brl": 46.9
+      }
+    ],
+    "patterns": [
+      [
+        "DISNEY",
+        "PLUS"
+      ],
+      [
+        "DISNEYPLUS"
+      ],
+      [
+        "DISNEY"
+      ]
+    ],
+    "logo": "/logos/disney.png",
+    "domains": [
+      "disneyplus.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "max",
+    "serviceName": "Max",
+    "company": "Warner Bros. Discovery",
+    "manageUrl": "https://www.max.com/account",
+    "cancelUrl": "https://www.max.com/account",
+    "plans": [
+      {
+        "name": "Max",
+        "brl": 34.9
+      }
+    ],
+    "patterns": [
+      [
+        "HBO",
+        "MAX"
+      ],
+      [
+        "HBOMAX"
+      ],
+      [
+        "MAX",
+        "COM"
+      ]
+    ],
+    "logo": "/logos/max.svg",
+    "domains": [
+      "max.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "globoplay",
+    "serviceName": "Globoplay",
+    "company": "Globo",
+    "manageUrl": "https://globoplay.globo.com/configuracoes",
+    "cancelUrl": "https://globoplay.globo.com/configuracoes",
+    "plans": [
+      {
+        "name": "Globoplay",
+        "brl": 27.9
+      }
+    ],
+    "patterns": [
+      [
+        "GLOBOPLAY"
+      ]
+    ],
+    "logo": "/logos/globoplay.png",
+    "domains": [
+      "globoplay.globo.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "apple-one",
+    "serviceName": "Apple One",
+    "company": "Apple",
+    "manageUrl": "https://apps.apple.com/account/subscriptions",
+    "cancelUrl": "https://support.apple.com/pt-br/118428",
+    "plans": [
+      {
+        "name": "Apple One",
+        "brl": 34.9
+      },
+      {
+        "name": "iCloud+",
+        "brl": 9.9
+      }
+    ],
+    "patterns": [
+      [
+        "APPLE",
+        "ONE"
+      ],
+      [
+        "ICLOUD"
+      ]
+    ],
+    "logo": "/logos/apple-one.svg",
+    "domains": [
+      "apple.com"
+    ],
+    "foreign": true
+  },
+  {
+    "id": "claro-flex",
+    "serviceName": "Claro Flex",
+    "company": "Claro",
+    "manageUrl": "https://www.claro.com.br/flex",
+    "cancelUrl": "https://www.claro.com.br/flex",
+    "plans": [
+      {
+        "name": "Claro Flex",
+        "brl": 39.9
+      }
+    ],
+    "patterns": [
+      [
+        "CLARO",
+        "FLEX"
+      ]
+    ],
+    "logo": "/logos/claro-flex.png",
+    "domains": [
+      "claro.com.br"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "suno",
+    "serviceName": "Suno",
+    "company": "Suno",
+    "manageUrl": "https://suno.com/account",
+    "cancelUrl": "https://suno.com/account",
+    "plans": [
+      {
+        "name": "Suno Pro",
+        "brl": 55,
+        "usd": 10
+      },
+      {
+        "name": "Suno Premier",
+        "brl": 165,
+        "usd": 30
+      }
+    ],
+    "patterns": [
+      [
+        "SUNO"
+      ]
+    ],
+    "logo": "/logos/suno.svg",
+    "domains": [
+      "suno.com"
+    ],
+    "foreign": true
+  },
+  {
+    "id": "ifood-clube",
+    "serviceName": "iFood Clube",
+    "company": "iFood",
+    "manageUrl": "https://www.ifood.com.br/clube",
+    "cancelUrl": "https://www.ifood.com.br/clube",
+    "plans": [
+      {
+        "name": "iFood Clube",
+        "brl": 7.95
+      }
+    ],
+    "patterns": [
+      [
+        "IFOOD",
+        "CLUBE"
+      ],
+      [
+        "IFOOD",
+        "CLUB"
+      ],
+      [
+        "IFOODCLUBE"
+      ],
+      [
+        "CLUBE",
+        "IFOOD"
+      ],
+      [
+        "IFOOD"
+      ]
+    ],
+    "logo": "/logos/ifood-clube.svg",
+    "domains": [
+      "ifood.com.br"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "deezer",
+    "serviceName": "Deezer",
+    "company": "Deezer",
+    "manageUrl": "https://www.deezer.com/account/subscription",
+    "cancelUrl": "https://www.deezer.com/account/subscription",
+    "plans": [
+      {
+        "name": "Deezer Premium",
+        "brl": 24.9
+      }
+    ],
+    "patterns": [
+      [
+        "DEEZER"
+      ]
+    ],
+    "logo": "/logos/deezer.svg",
+    "domains": [
+      "deezer.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "paramount",
+    "serviceName": "Paramount+",
+    "company": "Paramount",
+    "manageUrl": "https://www.paramountplus.com/account/",
+    "cancelUrl": "https://www.paramountplus.com/account/",
+    "plans": [
+      {
+        "name": "Paramount+",
+        "brl": 24.9
+      }
+    ],
+    "patterns": [
+      [
+        "PARAMOUNT"
+      ]
+    ],
+    "logo": "/logos/paramount.svg",
+    "domains": [
+      "paramountplus.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "crunchyroll",
+    "serviceName": "Crunchyroll",
+    "company": "Crunchyroll",
+    "manageUrl": "https://www.crunchyroll.com/account/membership",
+    "cancelUrl": "https://www.crunchyroll.com/account/membership",
+    "plans": [
+      {
+        "name": "Crunchyroll Mega Fan",
+        "brl": 19.9
+      }
+    ],
+    "patterns": [
+      [
+        "CRUNCHYROLL"
+      ]
+    ],
+    "logo": "/logos/crunchyroll.svg",
+    "domains": [
+      "crunchyroll.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "microsoft-365",
+    "serviceName": "Microsoft 365",
+    "company": "Microsoft",
+    "manageUrl": "https://account.microsoft.com/services",
+    "cancelUrl": "https://account.microsoft.com/services",
+    "plans": [
+      {
+        "name": "Microsoft 365 Pessoal",
+        "brl": 45
+      }
+    ],
+    "patterns": [
+      [
+        "MICROSOFT",
+        "365"
+      ],
+      [
+        "MICROSOFT365"
+      ],
+      [
+        "OFFICE",
+        "365"
+      ]
+    ],
+    "logo": "/logos/microsoft-365.svg",
+    "domains": [
+      "microsoft.com"
+    ],
+    "foreign": true
+  },
+  {
+    "id": "google-one",
+    "serviceName": "Google One",
+    "company": "Google",
+    "manageUrl": "https://one.google.com/settings",
+    "cancelUrl": "https://one.google.com/settings",
+    "plans": [
+      {
+        "name": "Google One",
+        "brl": 9.9
+      },
+      {
+        "name": "Google One",
+        "brl": 34.9
+      }
+    ],
+    "patterns": [
+      [
+        "GOOGLE",
+        "ONE"
+      ],
+      [
+        "GOOGLEONE"
+      ]
+    ],
+    "logo": "/logos/google-one.svg",
+    "domains": [
+      "one.google.com"
+    ],
+    "foreign": false
+  },
+  {
+    "id": "canva",
+    "serviceName": "Canva",
+    "company": "Canva",
+    "manageUrl": "https://www.canva.com/settings/billing",
+    "cancelUrl": "https://www.canva.com/settings/billing",
+    "plans": [
+      {
+        "name": "Canva Pro",
+        "brl": 82.5,
+        "usd": 15
+      }
+    ],
+    "patterns": [
+      [
+        "CANVA"
+      ]
+    ],
+    "logo": "/logos/canva.svg",
+    "domains": [
+      "canva.com"
+    ],
+    "foreign": true
+  },
+  {
+    "id": "notion",
+    "serviceName": "Notion",
+    "company": "Notion",
+    "manageUrl": "https://www.notion.so/profile",
+    "cancelUrl": "https://www.notion.so/profile",
+    "plans": [
+      {
+        "name": "Notion Plus",
+        "brl": 66,
+        "usd": 12
+      }
+    ],
+    "patterns": [
+      [
+        "NOTION"
+      ]
+    ],
+    "logo": "/logos/notion.svg",
+    "domains": [
+      "notion.so"
+    ],
+    "foreign": true
+  },
+  {
+    "id": "cursor",
+    "serviceName": "Cursor",
+    "company": "Cursor",
+    "manageUrl": "https://cursor.com/settings",
+    "cancelUrl": "https://cursor.com/settings",
+    "plans": [
+      {
+        "name": "Cursor Pro",
+        "brl": 110,
+        "usd": 20
+      }
+    ],
+    "patterns": [
+      [
+        "CURSOR"
+      ]
+    ],
+    "logo": "/logos/cursor.png",
+    "domains": [
+      "cursor.com",
+      "cursor.sh"
+    ],
+    "foreign": true
+  },
+  {
+    "id": "apple",
+    "serviceName": "Assinatura via Apple",
+    "company": "Apple",
+    "manageUrl": "https://apps.apple.com/account/subscriptions",
+    "cancelUrl": "https://support.apple.com/pt-br/118428",
+    "plans": [],
+    "patterns": [],
+    "logo": "/logos/apple.svg",
+    "domains": [
+      "apple.com"
+    ],
+    "foreign": true
+  }
+]
