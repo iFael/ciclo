@@ -1,4 +1,4 @@
-import { applyAction, type PlanAction } from "@/lib/actions";
+import { applyAction, cleanManageUrl, type PlanAction } from "@/lib/actions";
 import { resolveDeps } from "@/lib/deps";
 import { isAuthorized } from "@/lib/http/gate";
 import { normalizeDomain } from "@/lib/logos/infer";
@@ -18,6 +18,7 @@ const ACTIONS = new Set([
   "restore-charging",
   "ignore-charging",
   "set-domain",
+  "set-manage-url",
 ]);
 
 export async function handlePlans(request: Request): Promise<Response> {
@@ -27,7 +28,7 @@ export async function handlePlans(request: Request): Promise<Response> {
     const state = await deps.store.load();
     const cache = storeLogoCache(deps.store);
     if (request.method === "GET") return Response.json(await prepareScreen(state, deps.now(), cache));
-    const body = (await request.json()) as Partial<PlanAction> & { service?: string; domain?: string; replaces?: unknown };
+    const body = (await request.json()) as Partial<PlanAction> & { service?: string; domain?: string; replaces?: unknown; url?: unknown };
     if (!body.action || !ACTIONS.has(body.action) || !("id" in body) || !body.id) {
       return Response.json({ error: "Ação inválida." }, { status: 400 });
     }
@@ -46,6 +47,9 @@ export async function handlePlans(request: Request): Promise<Response> {
         fetchImpl: adaptFetch(fetch),
       });
       return Response.json(await prepareScreen(state, deps.now(), cache));
+    }
+    if (body.action === "set-manage-url" && (typeof body.url !== "string" || cleanManageUrl(body.url) === undefined)) {
+      return Response.json({ error: "Link inválido. Use um endereço https." }, { status: 400 });
     }
     const command = { ...body, replaces: typeof body.replaces === "string" ? body.replaces : undefined } as PlanAction;
     const next = applyAction(state, command, deps.now());

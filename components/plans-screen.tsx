@@ -31,6 +31,7 @@ type Card = {
   manageUrl: string | null;
   manageButton?: string;
   manageLabel: string;
+  customManageUrl?: boolean;
   removeConfirm: string;
   autoConfirmed: boolean;
   notice: string | null;
@@ -283,12 +284,12 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
     return () => window.clearTimeout(timer);
   }, [syncToast, syncError]);
 
-  async function act(action: string, id: string, service?: string, domain?: string, replaces?: string): Promise<boolean> {
+  async function act(action: string, id: string, service?: string, domain?: string, replaces?: string, url?: string): Promise<boolean> {
     haptic();
     const response = await fetch("/api/plans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, id, service, domain, replaces }),
+      body: JSON.stringify({ action, id, service, domain, replaces, url }),
     });
     if (!response.ok) {
       setError(true);
@@ -666,8 +667,8 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                             type="button"
                             data-testid="change-logo"
                             className="pressable shrink-0 cursor-pointer rounded-xl"
-                            title="Trocar logo"
-                            aria-label={`Trocar logo de ${card.planName}`}
+                            title="Editar logo e link"
+                            aria-label={`Editar logo e link de ${card.planName}`}
                             aria-expanded={editingLogo === card.id}
                             onClick={() => {
                               haptic(6);
@@ -720,24 +721,63 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                         </div>
                         {(card.logoFallback || card.notice || editingLogo === card.id) && (
                           <div className={cn("space-y-2", desktop ? "col-span-3 col-start-2 mt-3" : "mt-3")}>
-                            {(card.logoFallback || editingLogo === card.id) && (
+                            {editingLogo === card.id ? (
                               <form
-                                data-testid="logo-form"
-                                className={cn(editingLogo === card.id && "rise")}
+                                data-testid="plan-edit-form"
+                                className="rise grid gap-3 rounded-xl border bg-background/40 p-3"
                                 onSubmit={async (event) => {
                                   event.preventDefault();
-                                  const domain = String(new FormData(event.currentTarget).get("domain") ?? "");
-                                  if (await act("set-domain", card.id, undefined, domain)) setEditingLogo(null);
+                                  const data = new FormData(event.currentTarget);
+                                  const domain = String(data.get("domain") ?? "").trim();
+                                  const url = String(data.get("manage-url") ?? "").trim();
+                                  const currentUrl = card.customManageUrl ? (card.manageUrl ?? "") : "";
+                                  let ok = true;
+                                  if (domain) ok = await act("set-domain", card.id, undefined, domain);
+                                  if (ok && url !== currentUrl) ok = await act("set-manage-url", card.id, undefined, undefined, undefined, url);
+                                  if (ok) setEditingLogo(null);
                                 }}
                               >
-                                <Input
-                                  name="domain"
-                                  autoFocus={editingLogo === card.id}
-                                  className="h-10 text-sm"
-                                  aria-label="Site do serviço"
-                                  placeholder={card.logoFallback ? "Site do serviço" : "Site do serviço, para trocar o logo"}
-                                />
+                                <label className="grid gap-1 text-sm font-medium">
+                                  Logo
+                                  <Input name="domain" autoFocus className="h-10 text-sm font-normal" aria-label="Site do serviço" placeholder="Ex.: chatgpt.com" />
+                                  <span className="text-[12px] font-normal text-muted-foreground">Só o site do serviço. Usamos para buscar o logo.</span>
+                                </label>
+                                <label className="grid gap-1 text-sm font-medium">
+                                  Link do Gerenciar
+                                  <Input
+                                    name="manage-url"
+                                    data-testid="manage-url-input"
+                                    className="h-10 text-sm font-normal"
+                                    aria-label="Link do botão Gerenciar"
+                                    defaultValue={card.customManageUrl ? (card.manageUrl ?? "") : ""}
+                                    placeholder={card.manageUrl ?? "Ex.: https://chatgpt.com/settings/billing"}
+                                  />
+                                  <span className="text-[12px] font-normal text-muted-foreground">
+                                    A página que o botão Gerenciar abre. Deixe vazio para usar o link padrão.
+                                  </span>
+                                </label>
+                                <div className="flex gap-2">
+                                  <Button type="submit" className="h-9 flex-1 sm:flex-none" data-testid="plan-edit-save">
+                                    Salvar
+                                  </Button>
+                                  <Button type="button" variant="ghost" className="h-9 flex-1 sm:flex-none" onClick={() => setEditingLogo(null)}>
+                                    Cancelar
+                                  </Button>
+                                </div>
                               </form>
+                            ) : (
+                              card.logoFallback && (
+                                <form
+                                  data-testid="logo-form"
+                                  onSubmit={async (event) => {
+                                    event.preventDefault();
+                                    const domain = String(new FormData(event.currentTarget).get("domain") ?? "");
+                                    await act("set-domain", card.id, undefined, domain);
+                                  }}
+                                >
+                                  <Input name="domain" className="h-10 text-sm" aria-label="Site do serviço" placeholder="Site do serviço, para buscar o logo" />
+                                </form>
+                              )
                             )}
                             {card.notice && <p className="text-[13px] text-muted-foreground">{card.notice}</p>}
                           </div>

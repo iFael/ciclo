@@ -179,3 +179,30 @@ describe("Apple service guess", () => {
     expect(guessAppleService(shared, state([shared], [charge("apple-1", "2026-10-25", 99.9)]), today, ["chatgpt", "claude", "grok"])).toBeNull();
   });
 });
+
+describe("manage link chosen by the user", () => {
+  it("accepts https links, adds https when missing, refuses the rest and clears on empty", async () => {
+    const { cleanManageUrl } = await import("@/lib/actions");
+    expect(cleanManageUrl("https://chatgpt.com/settings/billing")).toBe("https://chatgpt.com/settings/billing");
+    expect(cleanManageUrl("chatgpt.com/settings/billing")).toBe("https://chatgpt.com/settings/billing");
+    expect(cleanManageUrl("  ")).toBeNull();
+    expect(cleanManageUrl("http://chatgpt.com")).toBeUndefined();
+    expect(cleanManageUrl("javascript:alert(1)")).toBeUndefined();
+    expect(cleanManageUrl("https://user:pw@chatgpt.com")).toBeUndefined();
+  });
+
+  it("wins over the catalog and the store, and goes back on empty", () => {
+    const current = state([sub({ descriptors: ["APPLE COM BILL"] })], [charge("sub-1", "2026-10-20", 99.9)]);
+    const custom = applyAction(current, { action: "set-manage-url", id: "sub-1", url: "chatgpt.com/settings/billing" }, NOW);
+    const card = buildScreen(custom, NOW).cards[0];
+    expect(card.manageUrl).toBe("https://chatgpt.com/settings/billing");
+    expect(card.customManageUrl).toBe(true);
+    expect(card.manageButton).toBe("Gerenciar no site");
+
+    const refused = applyAction(custom, { action: "set-manage-url", id: "sub-1", url: "javascript:alert(1)" }, NOW);
+    expect(refused.subscriptions[0].manageUrl).toBe("https://chatgpt.com/settings/billing");
+
+    const cleared = applyAction(custom, { action: "set-manage-url", id: "sub-1", url: "" }, NOW);
+    expect(buildScreen(cleared, NOW).cards[0].manageUrl).toBe("https://apps.apple.com/account/subscriptions");
+  });
+});
