@@ -25,7 +25,7 @@ export function isPublicPath(pathname: string): boolean {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname.startsWith("/_next") || isPublicPath(pathname)) return NextResponse.next();
-  if (e2eBypass() && (pathname === "/" || pathname.startsWith("/api/plans") || pathname.startsWith("/api/sync") || pathname.startsWith("/api/search") || pathname.startsWith("/api/auth") || pathname.startsWith("/api/account"))) {
+  if (e2eBypass() && (pathname === "/" || pathname.startsWith("/api/plans") || pathname.startsWith("/api/sync") || pathname.startsWith("/api/search") || pathname.startsWith("/api/summary") || pathname.startsWith("/api/auth") || pathname.startsWith("/api/account"))) {
     const response = NextResponse.next();
     response.headers.set("Cache-Control", "no-store");
     return response;
