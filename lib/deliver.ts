@@ -9,7 +9,7 @@ export async function deliverReminders(deps: AppDeps): Promise<number> {
   let count = 0;
   for (const message of due) {
     try {
-      await deps.sendEmail({ subject: message.subject, text: message.text });
+      await deps.sendEmail({ subject: message.subject, text: message.text, html: message.html });
       const inserted = await deps.store.markReminder(message.key, message.kind);
       if (inserted) count += 1;
     } catch (error) {

@@ -8,7 +8,7 @@ export type AppDeps = {
   now: () => Date;
   seedItemId?: string;
   userEmail?: string | null;
-  sendEmail: (message: { subject: string; text: string }) => Promise<void>;
+  sendEmail: (message: { subject: string; text: string; html?: string }) => Promise<void>;
   signOut?: () => Promise<void>;
   sendMagicLink?: (email: string, redirectTo: string) => Promise<void>;
 };
