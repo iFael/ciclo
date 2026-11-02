@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { silenceSync } from "./silence-sync";
+
+test.beforeEach(async ({ page }) => {
+  await silenceSync(page);
+});
 
 const checks = (passed: boolean[], details: string[]) =>
   [

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Brand, CycleMark } from "@/components/brand";
 import { bannerPlacement, isPlansTab, resolvePlansTab, tabLabelParts, type PlansTab } from "@/lib/plans-tabs";
+import { shouldStartAutoSync, suggestionSummary, SYNC_COOLDOWN_MS } from "@/lib/sync-policy";
 
 type Action = { id: string; label: string; href?: string; action?: string; targetId?: string };
 type Banner = { id: string; tone: "red" | "yellow" | "neutral"; text: string; actions: Action[] };
@@ -37,6 +38,118 @@ type Suggestion = {
 const UNDO_TOAST_MS = 5000;
 const TABS: PlansTab[] = ["assinaturas", "sugestoes"];
 
+type SyncMode = "manual" | "auto";
+type SyncTrigger = { reason: "load" | "foreground"; hiddenForMs?: number };
+type SyncResult =
+  | { kind: "ok"; newSuggestions: number; message: string; plans: Model | null }
+  | { kind: "limited"; message: string; retryAfterSeconds: number }
+  | { kind: "error"; message: string };
+
+let syncInflight: Promise<SyncResult> | null = null;
+
+function shareSync(run: () => Promise<SyncResult>): Promise<SyncResult> {
+  if (syncInflight) return syncInflight;
+  const job = run().finally(() => {
+    if (syncInflight === job) syncInflight = null;
+  });
+  syncInflight = job;
+  return job;
+}
+
+async function readPlans(): Promise<Model> {
+  const response = await fetch("/api/plans", { cache: "no-store" });
+  if (!response.ok) throw new Error("load");
+  return (await response.json()) as Model;
+}
+
+function applySyncResult(
+  mode: SyncMode,
+  result: SyncResult,
+  syncedAtRef: { current: string | null },
+  setModel: (model: Model) => void,
+  setSyncToast: (toast: { title: string; detail?: string } | null) => void,
+  setSyncError: (message: string | null) => void,
+) {
+  if (result.kind === "limited") {
+    const remainMs = result.retryAfterSeconds * 1000;
+    syncedAtRef.current = new Date(Date.now() - (SYNC_COOLDOWN_MS - remainMs)).toISOString();
+    if (mode === "manual") setSyncToast({ title: result.message });
+    return;
+  }
+  if (result.kind === "error") {
+    setSyncError(result.message);
+    return;
+  }
+  if (result.plans) {
+    syncedAtRef.current = new Date().toISOString();
+    setModel(result.plans);
+  }
+  if (mode === "manual" || result.newSuggestions > 0) {
+    setSyncToast({ title: "Sincronizado agora", detail: result.message });
+  }
+}
+
+function startSync(
+  mode: SyncMode,
+  trigger: SyncTrigger | undefined,
+  syncedAtRef: { current: string | null },
+  setModel: (model: Model) => void,
+  setSyncing: (syncing: boolean) => void,
+  setSyncToast: (toast: { title: string; detail?: string } | null) => void,
+  setSyncError: (message: string | null) => void,
+) {
+  const reason = trigger?.reason ?? "load";
+  const apply = (result: SyncResult) => applySyncResult(mode, result, syncedAtRef, setModel, setSyncToast, setSyncError);
+  if (mode === "auto" && syncInflight) {
+    void syncInflight.then(apply);
+    return;
+  }
+  if (
+    mode === "auto" &&
+    !shouldStartAutoSync({
+      inFlight: false,
+      lastSyncedAt: syncedAtRef.current,
+      now: Date.now(),
+      reason,
+      hiddenForMs: trigger?.hiddenForMs,
+    })
+  ) {
+    return;
+  }
+  const job = shareSync(async () => {
+    setSyncing(true);
+    setSyncToast(null);
+    setSyncError(null);
+    try {
+      const response = await fetch("/api/sync", { method: "POST", cache: "no-store" });
+      const body = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        newSuggestions?: number;
+        message?: string;
+        error?: string;
+        retryAfterSeconds?: number;
+        screen?: Model;
+      } | null;
+      if (response.status === 429) {
+        return {
+          kind: "limited" as const,
+          message: body?.error || "Aguarde um pouco para sincronizar de novo.",
+          retryAfterSeconds: body?.retryAfterSeconds ?? Math.round(SYNC_COOLDOWN_MS / 1000),
+        };
+      }
+      if (!response.ok || !body?.ok) return { kind: "error" as const, message: "Não foi possível sincronizar agora." };
+      const count = body.newSuggestions ?? 0;
+      const plans = body.screen ?? (await readPlans());
+      return { kind: "ok" as const, newSuggestions: count, message: body.message || suggestionSummary(count), plans };
+    } catch {
+      return { kind: "error" as const, message: "Não foi possível sincronizar agora." };
+    } finally {
+      setSyncing(false);
+    }
+  });
+  void job.then(apply);
+}
+
 type Model = {
   monthlyLabel: string;
   annualLabel: string;
@@ -44,6 +157,7 @@ type Model = {
   suggestions: Suggestion[];
   banners: Banner[];
   footer: string;
+  syncedAt?: string | null;
   firstRead: boolean;
   empty: boolean;
   connections: { institution: string; statusLabel: string; expiresLabel: string }[];
@@ -63,30 +177,48 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   const [addedToast, setAddedToast] = useState(0);
   const [erase, setErase] = useState(false);
   const [appleService, setAppleService] = useState<Record<string, string>>({});
+  const [syncing, setSyncing] = useState(false);
+  const [syncToast, setSyncToast] = useState<{ title: string; detail?: string } | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const tabRefs = useRef<Partial<Record<PlansTab, HTMLButtonElement | null>>>({});
+  const syncedAtRef = useRef<string | null>(null);
 
   useEffect(() => {
-    let cancel = false;
-    fetch("/api/plans", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("load");
-        return response.json() as Promise<Model>;
-      })
+    let active = true;
+    readPlans()
       .then((data) => {
-        if (cancel) return;
+        if (!active) return;
+        syncedAtRef.current = data.syncedAt ?? null;
         setModel(data);
         setTabParam((current) => {
           if (isPlansTab(current)) return current;
           const fromUrl = new URLSearchParams(window.location.search).get("aba");
           return resolvePlansTab(fromUrl, data.cards.length);
         });
+        startSync("auto", { reason: "load" }, syncedAtRef, setModel, setSyncing, setSyncToast, setSyncError);
       })
       .catch(() => {
-        if (!cancel) setError(true);
+        if (active) setError(true);
       });
     return () => {
-      cancel = true;
+      active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    let hiddenAt: number | null = null;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (document.visibilityState !== "visible" || hiddenAt === null) return;
+      const hiddenForMs = Date.now() - hiddenAt;
+      hiddenAt = null;
+      startSync("auto", { reason: "foreground", hiddenForMs }, syncedAtRef, setModel, setSyncing, setSyncToast, setSyncError);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
   useEffect(() => {
@@ -130,6 +262,15 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
     }, UNDO_TOAST_MS);
     return () => window.clearTimeout(timer);
   }, [addedToast]);
+
+  useEffect(() => {
+    if (!syncToast && !syncError) return;
+    const timer = window.setTimeout(() => {
+      setSyncToast(null);
+      setSyncError(null);
+    }, UNDO_TOAST_MS);
+    return () => window.clearTimeout(timer);
+  }, [syncToast, syncError]);
 
   async function act(action: string, id: string, service?: string, domain?: string): Promise<boolean> {
     const response = await fetch("/api/plans", {
@@ -204,6 +345,18 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                 <>
                   <button className="menu-backdrop" type="button" aria-label="Fechar menu" onClick={() => setMenu(false)} />
                   <div className="menu-panel" role="menu">
+                    <button
+                      className="quiet"
+                      role="menuitem"
+                      data-testid="menu-sync"
+                      disabled={syncing}
+                      onClick={() => {
+                        setMenu(false);
+                        startSync("manual", undefined, syncedAtRef, setModel, setSyncing, setSyncToast, setSyncError);
+                      }}
+                    >
+                      Sincronizar agora
+                    </button>
                     <button className="quiet" role="menuitem" data-testid="menu-connections" onClick={() => setConnections(true)}>
                       Conexões
                     </button>
@@ -231,6 +384,24 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
             <p className="subtitle" data-testid="page-subtitle">
               Suas assinaturas, encontradas automaticamente no seu cartão.
             </p>
+            {ready && model && (
+              <div className="sync-line">
+                <p data-testid="footer-sync" aria-live="polite">
+                  {syncing ? "Sincronizando…" : model.footer}
+                </p>
+                <button
+                  type="button"
+                  className="sync-button"
+                  data-testid="sync-now"
+                  aria-label="Sincronizar agora"
+                  aria-busy={syncing}
+                  disabled={syncing}
+                  onClick={() => startSync("manual", undefined, syncedAtRef, setModel, setSyncing, setSyncToast, setSyncError)}
+                >
+                  <RefreshIcon />
+                </button>
+              </div>
+            )}
           </div>
           {ready && model && tab === "assinaturas" && (
             <div className="summary">
@@ -459,9 +630,6 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                   )}
                 </div>
               )}
-              <footer className="footer" data-testid="footer-sync">
-                {model.footer}
-              </footer>
             </>
           )}
         </div>
@@ -520,6 +688,21 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
           <button type="button" data-testid="added-toast-open" aria-label="Ver assinaturas" onClick={() => selectTab("assinaturas", true)}>
             Ver
           </button>
+        </div>
+      )}
+
+      {syncToast && (
+        <div className="toast sync-toast" data-testid="sync-toast" role="status">
+          <span>
+            <strong>{syncToast.title}</strong>
+            {syncToast.detail ? <span className="toast-detail">{syncToast.detail}</span> : null}
+          </span>
+        </div>
+      )}
+
+      {syncError && (
+        <div className="toast toast-error" data-testid="sync-error" role="alert">
+          <span>{syncError}</span>
         </div>
       )}
 
@@ -683,6 +866,15 @@ function ConfidenceBar({ confidence }: { confidence: Confidence }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+      <path d="M14.4 9a5.4 5.4 0 1 1-1.5-3.7" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M14.5 3.1v3.3h-3.3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 

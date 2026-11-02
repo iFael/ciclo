@@ -52,12 +52,15 @@ describe("proxy", () => {
     unsigned();
     const home = await statusOf("http://localhost:3000/");
     const plans = await statusOf("http://localhost:3000/api/plans");
+    const sync = await statusOf("http://localhost:3000/api/sync", "POST");
     const logout = await statusOf("http://localhost:3000/api/auth/logout", "POST");
     const health = await statusOf("http://localhost:3000/api/health");
     const login = await statusOf("http://localhost:3000/login");
     expect(home.status).toBe(307);
     expect(home.location).toBe("http://localhost:3000/login");
     expect(plans.status).toBe(307);
+    expect(sync.status).toBe(307);
+    expect(isPublicPath("/api/sync")).toBe(false);
     expect(logout.status).toBe(307);
     expect(health.status).not.toBe(307);
     expect(login.status).not.toBe(307);

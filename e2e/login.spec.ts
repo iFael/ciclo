@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { silenceSync } from "./silence-sync";
+
+test.beforeEach(async ({ page }) => {
+  await silenceSync(page);
+});
 
 test("mostra erro quando o e-mail é recusado, o envio falha ou a resposta não é JSON", async ({ page }) => {
   await page.route("**/api/auth/magic-link", async (route) => {

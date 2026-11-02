@@ -3,6 +3,7 @@ import { APPLE_CHOICES, serviceInfo } from "@/lib/catalog";
 import { diffDays, todayInSaoPaulo } from "@/lib/dates";
 import { formatBrl, formatDayMonth, formatDayMonthYear, lastSyncAgeHours, round2 } from "@/lib/format";
 import { scoreStoredCharges } from "@/lib/matching";
+import { newestSyncedAt } from "@/lib/sync-policy";
 import type { AppState, Connection, ScreenBanner, ScreenModel, ServiceLogo, Subscription } from "@/lib/types";
 
 const STATUS_LABEL: Record<Connection["status"], string> = {
@@ -11,12 +12,6 @@ const STATUS_LABEL: Record<Connection["status"], string> = {
   replaced: "Substituída",
   error: "Com erro",
 };
-
-function newestSync(connections: Connection[]): string | null {
-  const times = connections.map((connection) => connection.lastSyncedAt).filter((value): value is string => !!value);
-  times.sort();
-  return times.at(-1) ?? null;
-}
 
 function priceLabel(amount: number, approximate: boolean): string {
   return `${approximate ? "≈ " : ""}${formatBrl(amount)}/mês`;
@@ -82,7 +77,7 @@ function cancelBanner(subscription: Subscription, state: AppState, today: string
 
 export function buildScreen(state: AppState, now = new Date(), logos?: Map<string, ServiceLogo>): ScreenModel {
   const today = todayInSaoPaulo(now);
-  const syncedAt = newestSync(state.connections);
+  const syncedAt = newestSyncedAt(state.connections);
   const age = lastSyncAgeHours(syncedAt, now);
   const firstRead = state.connections.every((connection) => !connection.lastSyncedAt);
   const cards = state.subscriptions
@@ -233,6 +228,7 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
     suggestions,
     banners,
     footer: firstRead || age === null ? "Ainda sem leitura" : age < 1 ? "Atualizado há menos de 1 h" : `Atualizado há ${Math.floor(age)} h`,
+    syncedAt,
     firstRead,
     empty: !firstRead && cards.length === 0 && suggestions.length === 0,
     connections: state.connections.map((connection) => ({

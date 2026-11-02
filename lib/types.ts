@@ -132,6 +132,7 @@ export type ScreenModel = {
   suggestions: ScreenSuggestion[];
   banners: ScreenBanner[];
   footer: string;
+  syncedAt: string | null;
   firstRead: boolean;
   empty: boolean;
   connections: { institution: string; statusLabel: string; expiresLabel: string }[];

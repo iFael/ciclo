@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
+import { silenceSync } from "./silence-sync";
 
 // Stage 2: the screen against a mocked /api/plans. No Pluggy and no Supabase.
+
+test.beforeEach(async ({ page }) => {
+  await silenceSync(page);
+});
 
 type Card = {
   id: string;
