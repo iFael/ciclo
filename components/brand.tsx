@@ -11,18 +11,12 @@ export function CycleMark({ className = "size-5", animated = false }: { classNam
         <path d="M47 22A18.5 18.5 0 1 0 49.5 36" fill="none" stroke="currentColor" strokeWidth="7" strokeLinecap="round" />
         <path d="M38.5 24.5L48.5 23L49.5 13" fill="none" stroke="currentColor" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
       </g>
-      <text
-        className="logo-coin"
-        x="32"
-        y="39.5"
-        textAnchor="middle"
-        fontFamily="Inter, system-ui, sans-serif"
-        fontWeight="800"
-        fontSize="19"
-        fill="currentColor"
-      >
-        $
-      </text>
+      <g transform="translate(32 32)">
+        <g className="logo-coin" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4.6 -5.2C4.6 -9 -4.6 -9 -4.6 -4.3C-4.6 0 4.6 0 4.6 4.3C4.6 9 -4.6 9 -4.6 5.2" strokeWidth="4" />
+          <path d="M0 -11V11" strokeWidth="3.2" />
+        </g>
+      </g>
     </svg>
   );
 }
@@ -30,8 +24,8 @@ export function CycleMark({ className = "size-5", animated = false }: { classNam
 export function Brand({ className }: { className?: string }) {
   return (
     <span className={cn("inline-flex min-h-11 items-center gap-3", className)}>
-      <span className="grid size-11 place-items-center rounded-[13px] bg-brand text-brand-foreground">
-        <CycleMark className="size-[31px]" animated />
+      <span className="grid size-14 place-items-center rounded-2xl bg-brand text-brand-foreground">
+        <CycleMark className="size-10" animated />
       </span>
       <span className="text-2xl font-semibold tracking-[-0.03em]">Ciclo</span>
     </span>
