@@ -277,16 +277,16 @@
   transform-origin: center;
 }
 .logo-live .logo-ring {
-  animation: logo-turn 10s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  animation: logo-turn 10s cubic-bezier(0.65, 0, 0.35, 1) var(--logo-delay, 0s) infinite;
 }
 .logo-live .logo-coin {
-  animation: logo-coin 10s var(--spring, ease-out) infinite;
+  animation: logo-coin 10s var(--spring, ease-out) var(--logo-delay, 0s) infinite;
 }
 .logo-loading .logo-ring {
-  animation: logo-turn-fast 1.9s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  animation: logo-turn-fast 1.9s cubic-bezier(0.65, 0, 0.35, 1) var(--logo-delay, 0s) infinite;
 }
 .logo-loading .logo-coin {
-  animation: logo-coin-fast 1.9s var(--spring, ease-out) infinite;
+  animation: logo-coin-fast 1.9s var(--spring, ease-out) var(--logo-delay, 0s) infinite;
 }
 .loading-halo {
   animation: loading-halo 1.9s ease-in-out infinite;
