@@ -455,7 +455,11 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
         <div className="mx-auto flex h-16 max-w-[1120px] items-center justify-between gap-3 px-4 sm:px-6 lg:h-auto lg:border-b lg:px-0 lg:pb-7 lg:pt-7">
           <Brand />
           <div className="flex min-w-0 items-center gap-2.5">
-            {desktop && ready && syncPill}
+            {desktop && ready && model && (
+              <span data-testid="footer-sync" aria-live="polite" className="sr-only">
+                {syncing ? "Sincronizando…" : model.footer}
+              </span>
+            )}
             {ready && <StatementSearch<Model> onConfirmed={(next) => setModel(next)} />}
             <ThemeToggle />
             <DropdownMenu modal={false}>
@@ -469,6 +473,11 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                   <RefreshCw />
                   Sincronizar agora
                 </DropdownMenuItem>
+                {desktop && model && (
+                  <p data-testid="menu-sync-status" className="px-2 pb-1.5 pl-8 text-xs text-muted-foreground">
+                    {syncing ? "Sincronizando…" : model.footer}
+                  </p>
+                )}
                 <DropdownMenuItem data-testid="menu-connections" onSelect={() => setConnections(true)}>
                   <Plug />
                   Conexões

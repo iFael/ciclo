@@ -69,9 +69,17 @@ test("o botão e o aviso de sucesso no celular e no desktop", async ({ page }, t
     await page.setViewportSize(viewport);
     await page.goto("/");
     await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
-    await expect(page.getByTestId("sync-now")).toBeVisible();
     await expect(page.getByTestId("footer-sync")).toHaveText("Atualizado há 2 h");
-    await page.getByTestId("sync-now").click();
+    if (size === "mobile") {
+      await expect(page.getByTestId("sync-now")).toBeVisible();
+      await page.getByTestId("sync-now").click();
+    } else {
+      // On desktop the header has no sync button: it lives in the menu, with the last update beneath it.
+      await expect(page.getByTestId("sync-now")).toHaveCount(0);
+      await page.getByTestId("menu").click();
+      await expect(page.getByTestId("menu-sync-status")).toHaveText("Atualizado há 2 h");
+      await page.getByTestId("menu-sync").click();
+    }
     await expect(page.getByTestId("sync-toast")).toContainText("Sincronizado agora");
     await expect(page.getByTestId("sync-toast")).toContainText("3 novas sugestões");
     await expect(page.getByTestId("footer-sync")).toHaveText("Atualizado há menos de 1 h");
