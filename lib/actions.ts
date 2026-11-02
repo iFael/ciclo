@@ -8,7 +8,7 @@ import type { AppState, Subscription, SubscriptionStatus } from "@/lib/types";
 export type PlanAction =
   | { action: "confirm"; id: string }
   | { action: "ignore"; id: string }
-  | { action: "pick-apple"; id: string; service: string }
+  | { action: "pick-apple"; id: string; service: string; replaces?: string }
   | { action: "remove"; id: string }
   | { action: "undo"; id: string }
   | { action: "still-paying"; id: string }
@@ -53,11 +53,18 @@ export function applyAction(input: AppState, command: PlanAction, now: Date): Ap
     subscription.service = picked.id;
     subscription.planName = planNameFor(picked.id, subscription.amount);
     subscription.status = "confirmed";
-    subscription.approximate = isForeignService(picked.id);
+    // The App Store bills a fixed price in reais, even for a service priced in dollars.
+    subscription.approximate = false;
     subscription.autoConfirmed = false;
     subscription.suppressAutoConfirm = true;
     subscription.suggestionLabel = null;
     subscription.undoStatus = null;
+    // The same service moved from direct billing to the App Store: the old plan
+    // stays in the history as cancelled instead of showing as "sem cobrança".
+    const replaced = command.replaces ? findSub(state, command.replaces) : undefined;
+    if (replaced && replaced.id !== subscription.id && replaced.status === "confirmed" && replaced.service === picked.id) {
+      replaced.status = "cancelled";
+    }
     return state;
   }
 

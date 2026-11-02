@@ -1,6 +1,7 @@
 import { isShadowed } from "@/lib/actions";
 import { cadenceOf, chargeDates, isStaleCharge, lastChargeLabel } from "@/lib/charges";
 import { appleChoices, serviceInfo } from "@/lib/catalog";
+import { STORES, billingChannel, guessAppleService } from "@/lib/channel";
 import { diffDays, todayInSaoPaulo } from "@/lib/dates";
 import { formatBrl, formatDayMonth, formatDayMonthYear, lastSyncAgeHours, round2 } from "@/lib/format";
 import { withLearned } from "@/lib/confidence";
@@ -102,6 +103,8 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
       const inactive = isInactive(subscription, state, today);
       const info = serviceInfo(serviceOf(subscription));
       const company = companyOf(subscription);
+      const channel = billingChannel(subscription);
+      const store = channel === "direct" ? null : STORES[channel];
       const dates = chargeDates(state, subscription.id);
       const last = anchorDate(subscription, state, today);
       const cadence = cadenceOf(dates.length ? dates : last ? [last] : []);
@@ -113,9 +116,15 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
         company,
         priceLabel: priceLabel(subscription.amount, subscription.approximate),
         nextChargeLabel: lastChargeLabel(last, today, cadence),
-        manageUrl: info?.manageUrl ?? null,
-        manageLabel: info ? `Gerenciar ${subscription.planName} no site da ${company}, abre em nova aba` : "",
-        removeConfirm: `Isso não cancela sua assinatura na ${company}. Para parar de pagar, use Gerenciar.`,
+        channel,
+        manageUrl: store ? store.manageUrl : info?.manageUrl || null,
+        manageButton: store ? store.button : "Gerenciar no site",
+        manageLabel: store
+          ? `Gerenciar ${subscription.planName} ${channel === "apple" ? "na Apple" : "no Google Play"}, abre em nova aba`
+          : info
+            ? `Gerenciar ${subscription.planName} no site da ${company}, abre em nova aba`
+            : "",
+        removeConfirm: `Isso não cancela sua assinatura ${store ? (channel === "apple" ? "na Apple" : "no Google Play") : `na ${company}`}. Para parar de pagar, use Gerenciar.`,
         autoConfirmed: subscription.autoConfirmed,
         notice: subscription.planChangeNotice,
         logoUrl: logo.logoUrl,
@@ -130,6 +139,8 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
   const inactiveCards = allCards.filter((card) => card.inactiveLabel);
   const feedback = feedbackFrom(state);
 
+  const choices = appleChoices();
+  const choiceIds = choices.map((choice) => choice.id);
   const suggestions = state.subscriptions
     .filter((subscription) => subscription.status === "suggested" && !isShadowed(subscription, state.subscriptions))
     .map((subscription) => {
@@ -146,9 +157,11 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
         learnedAdjustment(subscription.descriptors.length ? subscription.descriptors : [subscription.planName], feedback),
       );
       const logo = logoOf(subscription, logos);
+      const guess = guessAppleService(subscription, state, today, choiceIds);
       return {
         id: subscription.id,
         planName: subscription.planName,
+        appleGuess: guess,
         label: subscription.suggestionLabel,
         checked: subscription.checked,
         priceLabel: priceLabel(subscription.amount, subscription.approximate),
@@ -261,6 +274,6 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
         ? formatDayMonthYear(connection.consentExpiresAt.slice(0, 10))
         : "Sem data de vencimento",
     })),
-    appleChoices: appleChoices(),
+    appleChoices: choices,
   };
 }

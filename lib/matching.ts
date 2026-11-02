@@ -378,7 +378,11 @@ function titleCase(normalized: string): string {
 }
 
 function planTitle(service: string | null, descriptor: string, amount: number): string {
-  if (!service) return titleCase(descriptor) || "Assinatura";
+  if (!service) {
+    // "GOOGLE DUOLINGO" names the app after the store prefix.
+    const app = isGooglePlayBill(descriptor) ? descriptorWords(descriptor).filter((word) => !["GOOGLE", "PLAY", "GOOGLEPLAY"].includes(word)).join(" ") : descriptor;
+    return titleCase(app) || titleCase(descriptor) || "Assinatura";
+  }
   const words = descriptorWords(descriptor);
   if (service === "apple-one" && words.includes("ICLOUD") && !words.includes("ONE")) return "iCloud";
   return planNameFor(service, amount);
@@ -431,6 +435,18 @@ export function isAppleBill(description: string): boolean {
     hasPhrase(words, ["ITUNES", "COM", "BILL"]) ||
     (words.length <= 2 && words[0] === "ITUNES")
   );
+}
+
+/** Google's own products billed straight by Google, managed on their own sites. */
+const GOOGLE_OWN_WORDS = new Set(["YOUTUBE", "YOUTUBEPREMIUM", "ONE", "GOOGLEONE", "STORAGE", "CLOUD", "WORKSPACE", "GSUITE", "ADS", "FI", "NEST", "GEMINI"]);
+
+/** "GOOGLE *Duolingo", "GOOGLE PLAY ChatGPT", "GOOGLEPLAY*APP": a purchase through Google Play. */
+export function isGooglePlayBill(description: string): boolean {
+  const words = descriptorWords(description);
+  if (words.length === 0) return false;
+  if (words.includes("GOOGLEPLAY") || hasPhrase(words, ["GOOGLE", "PLAY"])) return true;
+  if (words[0] !== "GOOGLE" || words.length < 2) return false;
+  return !words.slice(1).some((word) => GOOGLE_OWN_WORDS.has(word));
 }
 
 /**

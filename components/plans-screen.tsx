@@ -27,7 +27,9 @@ type Card = {
   planName: string;
   priceLabel: string;
   nextChargeLabel: string;
+  channel?: "apple" | "google-play" | "direct";
   manageUrl: string | null;
+  manageButton?: string;
   manageLabel: string;
   removeConfirm: string;
   autoConfirmed: boolean;
@@ -43,6 +45,7 @@ type Suggestion = {
   checked: boolean;
   priceLabel: string;
   apple: boolean;
+  appleGuess?: { service: string; serviceName: string; planName: string; reason: string; replaces: string | null } | null;
   logoUrl?: string | null;
   logoFallback?: boolean;
   confidence?: Confidence | null;
@@ -280,12 +283,12 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
     return () => window.clearTimeout(timer);
   }, [syncToast, syncError]);
 
-  async function act(action: string, id: string, service?: string, domain?: string): Promise<boolean> {
+  async function act(action: string, id: string, service?: string, domain?: string, replaces?: string): Promise<boolean> {
     haptic();
     const response = await fetch("/api/plans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, id, service, domain }),
+      body: JSON.stringify({ action, id, service, domain, replaces }),
     });
     if (!response.ok) {
       setError(true);
@@ -335,8 +338,9 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   }
 
   async function confirmSuggestion(suggestion: Suggestion) {
-    const picked = suggestion.apple ? appleService[suggestion.id] : undefined;
-    const ok = picked ? await act("pick-apple", suggestion.id, picked) : await act("confirm", suggestion.id);
+    const picked = suggestion.apple ? (appleService[suggestion.id] ?? suggestion.appleGuess?.service) : undefined;
+    const replaces = picked && picked === suggestion.appleGuess?.service ? (suggestion.appleGuess?.replaces ?? undefined) : undefined;
+    const ok = picked ? await act("pick-apple", suggestion.id, picked, undefined, replaces) : await act("confirm", suggestion.id);
     if (ok) {
       haptic([10, 40, 16]);
       setAddedToast((current) => current + 1);
@@ -693,7 +697,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                           {card.manageUrl && (
                             <Button asChild className={desktop ? "h-[38px] px-4" : "h-[42px] flex-1"}>
                               <a data-testid="manage" href={card.manageUrl} target="_blank" rel="noopener noreferrer" aria-label={card.manageLabel}>
-                                Gerenciar
+                                {card.manageButton ?? "Gerenciar"}
                                 <ExternalLink className="size-3.5" />
                               </a>
                             </Button>
@@ -877,16 +881,24 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                                 data-testid="apple-picker"
                                 aria-label="Escolher o serviço desta assinatura da Apple"
                                 className="h-11 w-full min-w-0 rounded-lg border border-input bg-card px-3 text-sm text-foreground"
-                                value={appleService[suggestion.id] ?? ""}
+                                value={appleService[suggestion.id] ?? suggestion.appleGuess?.service ?? ""}
                                 onChange={(event) => setAppleService((current) => ({ ...current, [suggestion.id]: event.target.value }))}
                               >
                                 <option value="">Escolher serviço</option>
+                                {suggestion.appleGuess && !model.appleChoices.some((choice) => choice.id === suggestion.appleGuess?.service) && (
+                                  <option value={suggestion.appleGuess.service}>{suggestion.appleGuess.serviceName}</option>
+                                )}
                                 {model.appleChoices.map((choice) => (
                                   <option key={choice.id} value={choice.id}>
                                     {choice.label}
                                   </option>
                                 ))}
                               </select>
+                              {suggestion.appleGuess && (
+                                <span data-testid="apple-guess" className="text-[13px] font-normal leading-snug text-muted-foreground">
+                                  {suggestion.appleGuess.reason}
+                                </span>
+                              )}
                             </label>
                           )}
                           <div className="mt-auto flex gap-2 pt-4">
