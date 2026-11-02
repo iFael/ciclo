@@ -1,4 +1,4 @@
-import { attachKnownCharges, mergeDetections, pruneSuggestions } from "@/lib/actions";
+import { attachKnownCharges, dropShadowedSuggestions, mergeDetections, pruneSuggestions } from "@/lib/actions";
 import { todayInSaoPaulo, transactionQueries, windowStart } from "@/lib/dates";
 import { ensureLogos } from "@/lib/logos/resolve";
 import { detect, knownMerchants } from "@/lib/matching";
@@ -144,7 +144,7 @@ export async function syncItem(deps: SyncDeps, itemId: string, event: string, de
   if (dates.at(-1)) connection.lastDataThrough = dates.at(-1) ?? null;
   let next;
   try {
-    next = pruneSuggestions(attachKnownCharges(mergeDetections(state, detections, true), rows), detections);
+    next = dropShadowedSuggestions(pruneSuggestions(attachKnownCharges(mergeDetections(state, detections, true), rows), detections));
   } catch (error) {
     throw asStep(error, "detect_failed");
   }

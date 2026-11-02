@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { detect, knownMerchants } from "@/lib/matching";
 import { confirmFromSearch, searchStatement } from "@/lib/search";
+import { mergeDetections } from "@/lib/actions";
+import { buildScreen } from "@/lib/screen";
 import { emptyState } from "@/lib/store";
 import type { StoredTx } from "@/lib/types";
 
@@ -56,5 +58,27 @@ describe("statement search", () => {
   it("does nothing for a key with no charges", () => {
     const state = emptyState();
     expect(confirmFromSearch(state, rows, "NADA", "2026-11-01")).toBe(state);
+  });
+});
+
+describe("shadowed suggestions", () => {
+  it("removes the old suggestion when search confirms the same merchant", () => {
+    const today = "2026-11-01";
+    const gran = [1, 2, 3, 4].map((month) => tx(`r${month}`, "GRAN CENTRO UNIVE", `2026-0${month + 5}-26`, 77));
+    const suggested = mergeDetections(emptyState(), detect(gran, [], today), true);
+    expect(suggested.subscriptions.map((item) => item.status)).toEqual(["suggested"]);
+    const state = confirmFromSearch(suggested, gran, "GRAN CENTRO UNIVE", today);
+    expect(state.subscriptions.map((item) => item.status)).toEqual(["confirmed"]);
+    expect(state.charges.every((charge) => charge.subscriptionId === state.subscriptions[0].id)).toBe(true);
+  });
+
+  it("hides a suggestion already covered by a plan on screen", () => {
+    const today = "2026-11-01";
+    const gran = [1, 2, 3, 4].map((month) => tx(`r${month}`, "GRAN CENTRO UNIVE", `2026-0${month + 5}-26`, 77));
+    const suggested = mergeDetections(emptyState(), detect(gran, [], today), true);
+    const plan = { ...suggested.subscriptions[0], id: "plan", merchantKey: "unknown:GRAN CENTRO UNIVE", status: "confirmed" as const };
+    const screen = buildScreen({ ...suggested, subscriptions: [...suggested.subscriptions, plan] }, new Date("2026-11-01T12:00:00Z"));
+    expect(screen.suggestions).toEqual([]);
+    expect(screen.cards.map((card) => card.planName)).toEqual(["Gran Centro Unive"]);
   });
 });

@@ -155,6 +155,7 @@ export function createSupabaseStore(): Store {
           source: record.source,
           resolved_at: record.resolvedAt,
           status: record.status,
+          ...(record.pinned ? { pinned: true } : {}),
         });
         if (error) return;
       } catch {
@@ -260,6 +261,7 @@ function mapLogo(row: Record<string, unknown>): ServiceLogo {
     source: (allowed.has(source) ? source : "fallback") as ServiceLogo["source"],
     resolvedAt: row.resolved_at ? String(row.resolved_at) : new Date(0).toISOString(),
     status: row.status === "ok" ? "ok" : "fallback",
+    pinned: row.pinned === true,
   };
 }
 

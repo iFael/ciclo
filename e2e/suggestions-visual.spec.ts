@@ -174,4 +174,10 @@ test("confirmed cards show the last charge and suggestions show a confidence bar
     await expect(cards.first().locator("img.logo")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`${size}-${scheme}-sugestoes.png`), fullPage: true });
   }
+
+  await page.getByTestId("change-logo").first().click();
+  await expect(page.getByTestId("logo-form")).toBeVisible();
+  await expect(page.getByLabel("Site do serviço")).toBeFocused();
+  await page.getByTestId("change-logo").first().click();
+  await expect(page.getByTestId("logo-form")).toHaveCount(0);
 });

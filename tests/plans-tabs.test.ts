@@ -70,6 +70,9 @@ describe("plans tabs", () => {
     const suggested: Subscription = {
       ...confirmed,
       id: "sub-maybe",
+      service: "suno",
+      merchantKey: "suno",
+      descriptors: ["SUNO INC"],
       planName: "Suno Inc",
       status: "suggested",
       amount: 51.75,
