@@ -39,8 +39,8 @@ const groups = [
     lastLabel: "05/10/2026",
     status: null,
     charges: [
-      { date: "2026-10-05", label: "05/10/2026", amount: "R$ 189,90" },
-      { date: "2026-09-05", label: "05/09/2026", amount: "R$ 189,90" },
+      { id: "gran-1", date: "2026-10-05", label: "05/10/2026", amount: "R$ 189,90", description: "GRAN FACULDADE" },
+      { id: "gran-2", date: "2026-09-05", label: "05/09/2026", amount: "R$ 189,90", description: "GRAN FACULDADE" },
     ],
   },
   {
@@ -51,7 +51,7 @@ const groups = [
     amountLabel: "R$ 49,90",
     lastLabel: "12/02/2026",
     status: "ignored",
-    charges: [{ date: "2026-02-12", label: "12/02/2026", amount: "R$ 49,90" }],
+    charges: [{ id: "gran-3", date: "2026-02-12", label: "12/02/2026", amount: "R$ 49,90", description: "GRAN CURSOS ONLINE" }],
   },
 ];
 
@@ -109,4 +109,49 @@ test("a busca no extrato agrupa por comerciante e marca como assinatura", async 
     expect(confirmed).toBe(true);
     confirmed = false;
   }
+});
+
+test("vincula pagamentos Pix com descrições distintas ao plano existente, apenas após seleção", async ({ page }) => {
+  await silenceSync(page);
+  const payments = [
+    { id: "pix-aug", date: "2026-08-16", label: "16/08/2026", amount: "R$ 103,40", description: "Pagamento com QR Pix EBANX Ltda." },
+    { id: "pix-sep", date: "2026-09-20", label: "20/09/2026", amount: "R$ 103,40", description: "Pix automático Ebanx" },
+    { id: "pix-oct", date: "2026-10-19", label: "19/10/2026", amount: "R$ 103,40", description: "Pix automático Ebanx" },
+  ];
+  let linked = false;
+  const chatgpt = { ...base.cards[0], id: "chatgpt", service: "chatgpt", planName: "ChatGPT Plus", priceLabel: "R$ 103,40/mês", nextChargeLabel: "Última cobrança: 19/07" };
+  await page.route("**/api/plans", (route) => route.fulfill({ json: { ...base, cards: [chatgpt] } }));
+  await page.route("**/api/search**", async (route) => {
+    if (route.request().method() === "POST") {
+      expect(route.request().postDataJSON()).toEqual({
+        action: "link-existing", key: "payee:EBANX", subscriptionId: "chatgpt",
+        transactionIds: ["pix-aug", "pix-sep", "pix-oct"],
+      });
+      linked = true;
+      await route.fulfill({ json: { ...base, cards: [{ ...chatgpt, nextChargeLabel: "Última cobrança: 19/10" }] } });
+      return;
+    }
+    await route.fulfill({ json: {
+      groups: [{
+        key: "payee:EBANX", name: "Ebanx", count: 3, months: 3,
+        amountLabel: "R$ 103,40", lastLabel: "19/10/2026", status: linked ? "plan" : null,
+        charges: payments,
+      }],
+      plans: [{ id: "chatgpt", name: "ChatGPT Plus" }],
+    } });
+  });
+  await page.goto("/");
+  await page.getByTestId("search-open").click();
+  await page.getByTestId("search-input").fill("ebanx");
+  const group = page.getByTestId("search-group");
+  await expect(group).toContainText("3 cobranças");
+  await group.getByRole("button", { name: /Ebanx/ }).click();
+  await expect(page.getByTestId("search-charge-select")).toHaveCount(3);
+  await page.getByTestId("search-charge-select").nth(0).check();
+  await page.getByTestId("search-charge-select").nth(1).check();
+  await page.getByTestId("search-charge-select").nth(2).check();
+  await page.getByTestId("search-target-plan").selectOption("chatgpt");
+  await page.getByTestId("search-link-plan").click();
+  await expect(page.getByTestId("plan-card").first()).toContainText("19/10");
+  expect(linked).toBe(true);
 });

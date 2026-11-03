@@ -14,6 +14,7 @@ import {
   MONTHLY_GRACE_DAYS,
 } from "@/lib/rules";
 import { descriptorWords, hasPhrase, matchesPattern, merchantDescriptor, merchantWords, normalizeDescriptor } from "@/lib/text";
+import { isPix, isSubscriptionCandidate, paymentKey } from "@/lib/payment-identity";
 
 export { isIofRotativo, excludedKind, isGenericDescriptor } from "@/lib/noise";
 export { normalizeDescriptor, descriptorWords } from "@/lib/text";
@@ -26,6 +27,11 @@ export type CandidateTx = TxSignals & {
   chargeDate: string;
   mcc?: number;
   foreignCharge?: boolean;
+  status?: string | null;
+  paymentMethod?: string | null;
+  merchantName?: string | null;
+  counterpartyName?: string | null;
+  counterpartyKind?: "business" | "person" | null;
 };
 
 export type Detection = {
@@ -391,7 +397,7 @@ function planTitle(service: string | null, descriptor: string, amount: number): 
 function detectionFromCluster(txs: CandidateTx[], service: string | null, today: string, known = false): Detection | null {
   const summary = summarize(txs, today, known || Boolean(service && service !== "apple"));
   if (!summary.passed || !summary.last) return null;
-  const descriptor = merchantDescriptor(txs[0]?.description ?? "");
+  const descriptor = txs[0] && isPix(txs[0]) ? paymentKey(txs[0]) : merchantDescriptor(txs[0]?.description ?? "");
   const info = service ? serviceInfo(service) : undefined;
   const amount = round2(summary.medianAmount);
   const confidence = confidenceFor({
@@ -476,10 +482,10 @@ export function detect(
   const knownBy = new Map<string, KnownMerchant>();
   for (const merchant of known) for (const descriptor of merchant.descriptors) knownBy.set(descriptor, merchant);
   const usable = transactions.filter((tx) => {
-    if (excludedKind(tx)) return false;
+    if (!isSubscriptionCandidate(tx)) return false;
     if (isAppleBill(tx.description)) return !merchants.has(`apple:${Math.round(tx.amount * 100)}`);
     const service = classifyDescriptor(tx.description);
-    if (!service && isGenericDescriptor(tx.description)) return false;
+    if (!service && !isPix(tx) && isGenericDescriptor(tx.description)) return false;
     if (descriptors.has(normalizeDescriptor(tx.description))) return false;
     return true;
   });
@@ -495,8 +501,9 @@ export function detect(
       continue;
     }
     const service = classifyDescriptor(tx.description);
-    const mine = knownBy.get(merchantDescriptor(tx.description)) ?? null;
-    const key = mine ? `known:${mine.merchantKey}` : (service ?? `raw:${merchantDescriptor(tx.description)}`);
+    const pix = isPix(tx);
+    const mine = pix ? null : knownBy.get(merchantDescriptor(tx.description)) ?? null;
+    const key = mine ? `known:${mine.merchantKey}` : pix ? `pix:${paymentKey(tx)}` : (service ?? `raw:${merchantDescriptor(tx.description)}`);
     const group = groups.get(key) ?? { service: mine && mine.service !== "unknown" ? mine.service : service, known: mine, txs: [] };
     group.txs.push(tx);
     groups.set(key, group);

@@ -50,14 +50,24 @@ export const pluggyConnectTokenSchema = z.object({ accessToken: z.string().min(1
 export const pluggyTransactionSchema = z.object({
   id: z.string().min(1),
   description: optional(text),
+  descriptionRaw: optional(text),
   amount,
   date: isoDate,
   accountId: optional(text),
   currencyCode: optional(text),
   amountInAccountCurrency: amount.nullish(),
   type: optional(text),
+  status: optional(text),
   category: text.nullish(),
   operationType: text.nullish(),
+  merchant: z.object({ name: optional(text), businessName: optional(text) }).nullish(),
+  paymentData: z.object({
+    paymentMethod: optional(text),
+    receiver: z.object({
+      name: optional(text),
+      documentNumber: z.object({ type: optional(text) }).nullish(),
+    }).nullish(),
+  }).nullish(),
   creditCardMetadata: z
     .object({
       transactionDateTime: optional(isoDate),

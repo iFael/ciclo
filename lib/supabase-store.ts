@@ -82,30 +82,57 @@ export function createSupabaseStore(): Store {
           description: row.description,
           charge_date: row.chargeDate,
           foreign_charge: row.foreignCharge,
+          original_amount: row.originalAmount ?? null,
+          tx_type: row.type ?? null,
+          category: row.category ?? null,
+          operation_type: row.operationType ?? null,
+          tx_status: row.status ?? null,
+          description_raw: row.descriptionRaw ?? null,
+          merchant_name: row.merchantName ?? null,
+          counterparty_name: row.counterpartyName ?? null,
+          counterparty_kind: row.counterpartyKind ?? null,
+          payment_method: row.paymentMethod ?? null,
         })),
       );
     },
     async deleteTransactions(ids) {
       if (ids.length === 0) return;
       const client = admin();
-      const { error } = await client.from("transactions").delete().in("id", ids);
-      await fail(error);
+      for (let offset = 0; offset < ids.length; offset += 500) {
+        const { error } = await client.from("transactions").delete().in("id", ids.slice(offset, offset + 500));
+        await fail(error);
+      }
     },
     async transactionsSince(date) {
       const client = admin();
-      const { data, error } = await client.from("transactions").select("*").gte("charge_date", date);
-      await fail(error);
-      return (data ?? []).map(mapTx);
+      const rows: Record<string, unknown>[] = [];
+      for (let offset = 0; ; offset += 500) {
+        const { data, error } = await client.from("transactions").select("*").gte("charge_date", date)
+          .order("charge_date", { ascending: true }).order("id", { ascending: true })
+          .range(offset, offset + 499);
+        await fail(error);
+        rows.push(...(data ?? []));
+        if (!data || data.length < 500) break;
+      }
+      return rows.map(mapTx);
     },
     async purgeUnlinked(olderThan, keepIds) {
       const client = admin();
-      const { data, error } = await client.from("transactions").select("id,charge_date").lt("charge_date", olderThan);
-      await fail(error);
+      const outdated: string[] = [];
+      for (let offset = 0; ; offset += 500) {
+        const { data, error } = await client.from("transactions").select("id,charge_date").lt("charge_date", olderThan)
+          .order("charge_date", { ascending: true }).order("id", { ascending: true })
+          .range(offset, offset + 499);
+        await fail(error);
+        outdated.push(...(data ?? []).map((row) => String(row.id)));
+        if (!data || data.length < 500) break;
+      }
       const keep = new Set(keepIds);
-      const ids = (data ?? []).map((row) => String(row.id)).filter((id) => !keep.has(id));
-      if (ids.length === 0) return;
-      const deleted = await client.from("transactions").delete().in("id", ids);
-      await fail(deleted.error);
+      const ids = outdated.filter((id) => id && !keep.has(id));
+      for (let offset = 0; offset < ids.length; offset += 500) {
+        const { error } = await client.from("transactions").delete().in("id", ids.slice(offset, offset + 500));
+        await fail(error);
+      }
     },
     async sentReminderKeys() {
       const client = admin();
@@ -167,8 +194,10 @@ export function createSupabaseStore(): Store {
 
 async function upsert(client: SupabaseClient, table: string, rows: Record<string, unknown>[], onConflict = "id"): Promise<void> {
   if (rows.length === 0) return;
-  const { error } = await client.from(table).upsert(rows, { onConflict });
-  await fail(error);
+  for (let offset = 0; offset < rows.length; offset += 500) {
+    const { error } = await client.from(table).upsert(rows.slice(offset, offset + 500), { onConflict });
+    await fail(error);
+  }
 }
 
 async function deleteAll(client: SupabaseClient, table: string, column: string): Promise<void> {
@@ -200,6 +229,7 @@ function mapConnection(row: Record<string, unknown>): Connection {
     lastErrorCode: row.last_error_code ? String(row.last_error_code) : null,
     lastSyncHadData: Boolean(row.last_sync_had_data),
     lastDataThrough: row.last_data_through ? String(row.last_data_through) : null,
+    importVersion: typeof row.import_version === "number" ? row.import_version : 1,
     accounts: Array.isArray(row.accounts) ? (row.accounts as Connection["accounts"]) : [],
   };
 }
@@ -224,6 +254,7 @@ function mapSubscription(row: Record<string, unknown>): Subscription {
     descriptors: Array.isArray(row.descriptors) ? row.descriptors.map(String) : [],
     suggestionLabel: row.suggestion_label ? String(row.suggestion_label) : null,
     manageUrl: typeof row.manage_url === "string" && row.manage_url ? row.manage_url : null,
+    paymentMatches: Array.isArray(row.payment_matches) ? row.payment_matches as Subscription["paymentMatches"] : [],
   };
 }
 
@@ -249,6 +280,13 @@ function mapTx(row: Record<string, unknown>): StoredTx {
     type: row.tx_type ? String(row.tx_type) : null,
     category: row.category ? String(row.category) : null,
     operationType: row.operation_type ? String(row.operation_type) : null,
+    originalAmount: row.original_amount !== null && row.original_amount !== undefined ? num(row.original_amount) : null,
+    status: row.tx_status ? String(row.tx_status) : null,
+    descriptionRaw: row.description_raw ? String(row.description_raw) : null,
+    merchantName: row.merchant_name ? String(row.merchant_name) : null,
+    counterpartyName: row.counterparty_name ? String(row.counterparty_name) : null,
+    counterpartyKind: row.counterparty_kind === "business" || row.counterparty_kind === "person" ? row.counterparty_kind : null,
+    paymentMethod: row.payment_method ? String(row.payment_method) : null,
   };
 }
 
@@ -279,6 +317,7 @@ function connectionRow(row: Connection): Record<string, unknown> {
     last_error_code: row.lastErrorCode,
     last_sync_had_data: row.lastSyncHadData,
     last_data_through: row.lastDataThrough,
+    import_version: row.importVersion ?? 1,
     accounts: row.accounts ?? [],
     updated_at: new Date().toISOString(),
   };
@@ -304,6 +343,7 @@ function subscriptionRow(row: Subscription): Record<string, unknown> {
     descriptors: row.descriptors,
     suggestion_label: row.suggestionLabel,
     manage_url: row.manageUrl ?? null,
+    payment_matches: row.paymentMatches ?? [],
     updated_at: new Date().toISOString(),
   };
 }

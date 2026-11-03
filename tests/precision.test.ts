@@ -51,13 +51,13 @@ describe("intermediaries", () => {
 describe("bank debits and foreign charges", () => {
   const base = { id: "t1", description: "IFOOD CLUBE", date: "2026-10-10", accountId: "acc" };
 
-  it("reads a negative bank DEBIT as a charge and still drops credits", () => {
+  it("normalizes bank debits while retaining credits and transfers for classification", () => {
     expect(chargeAmount({ ...base, amount: -9.9, type: "DEBIT" })).toBe(9.9);
     expect(mapPluggyTransaction({ ...base, amount: -9.9, type: "DEBIT" }, "item", "acc")?.amount).toBe(9.9);
-    expect(mapPluggyTransaction({ ...base, amount: 9.9, type: "CREDIT" }, "item", "acc")).toBeNull();
-    expect(mapPluggyTransaction({ ...base, amount: -9.9, type: "CREDIT" }, "item", "acc")).toBeNull();
-    expect(mapPluggyTransaction({ ...base, description: "Pagamento de fatura", amount: -1200, type: "DEBIT" }, "item", "acc")).toBeNull();
-    expect(mapPluggyTransaction({ ...base, description: "Saque 24h", amount: -200, type: "DEBIT" }, "item", "acc")).toBeNull();
+    expect(mapPluggyTransaction({ ...base, amount: 9.9, type: "CREDIT" }, "item", "acc")?.type).toBe("CREDIT");
+    expect(mapPluggyTransaction({ ...base, amount: -9.9, type: "CREDIT" }, "item", "acc")?.originalAmount).toBe(-9.9);
+    expect(mapPluggyTransaction({ ...base, description: "Pagamento de fatura", amount: -1200, type: "DEBIT" }, "item", "acc")?.amount).toBe(1200);
+    expect(mapPluggyTransaction({ ...base, description: "Saque 24h", amount: -200, type: "DEBIT" }, "item", "acc")?.amount).toBe(200);
   });
 
   it("uses the converted amount for a foreign charge", () => {

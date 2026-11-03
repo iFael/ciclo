@@ -1,5 +1,6 @@
 import { latestChargeDate } from "@/lib/charges";
 import { merchantDescriptor } from "@/lib/text";
+import { isOutgoing, isPix, isSubscriptionCandidate, paymentKey } from "@/lib/payment-identity";
 import { isForeignService, planNameFor, serviceInfo } from "@/lib/catalog";
 import { formatBrl } from "@/lib/format";
 import { merchantIgnoreToken, normalizeDescriptor, withinPercent, type Detection } from "@/lib/matching";
@@ -288,7 +289,7 @@ export function pruneSuggestions(input: AppState, detections: Detection[]): AppS
  */
 export function attachKnownCharges(
   input: AppState,
-  transactions: { id: string; description: string; amount: number; chargeDate: string }[],
+  transactions: (Pick<import("@/lib/types").StoredTx, "id" | "description" | "amount" | "chargeDate"> & Partial<import("@/lib/types").StoredTx>)[],
 ): AppState {
   const state = clone(input);
   const linked = new Set(state.charges.map((charge) => charge.transactionId));
@@ -296,8 +297,12 @@ export function attachKnownCharges(
     if (subscription.status !== "confirmed" || subscription.descriptors.length === 0) continue;
     const descriptors = new Set(subscription.descriptors.map((item) => merchantDescriptor(item)));
     for (const tx of transactions) {
-      if (linked.has(tx.id) || tx.amount <= 0) continue;
-      if (!descriptors.has(merchantDescriptor(tx.description))) continue;
+      if (linked.has(tx.id) || !isOutgoing(tx)) continue;
+      const matchingDescriptor = !isPix(tx) && descriptors.has(merchantDescriptor(tx.description));
+      const matchingPayment = isSubscriptionCandidate(tx) && (subscription.paymentMatches ?? []).some((match) =>
+        match.key === paymentKey(tx) && match.accountId === tx.accountId && withinPercent(match.amount, tx.amount, 0.15),
+      );
+      if (!matchingDescriptor && !matchingPayment) continue;
       if (!withinPercent(subscription.amount, tx.amount, 0.15)) continue;
       if (state.charges.some((charge) => charge.subscriptionId === subscription.id && charge.chargeDate === tx.chargeDate)) continue;
       state.charges.push({
@@ -324,6 +329,7 @@ export function isShadowed(suggestion: Subscription, subscriptions: Subscription
     if (plan.id === suggestion.id || (plan.status !== "confirmed" && plan.status !== "cancelled")) return false;
     if (plan.merchantKey === suggestion.merchantKey) return true;
     const sameService = plan.service === suggestion.service && plan.service !== "unknown" && plan.service !== "apple";
+    if ((plan.paymentMatches ?? []).some((match) => suggestion.merchantKey.startsWith(`unknown:${match.key}:`) && withinPercent(match.amount, suggestion.amount, 0.15))) return true;
     return sameService || plan.descriptors.some((descriptor) => mine.has(merchantDescriptor(descriptor)));
   });
 }
