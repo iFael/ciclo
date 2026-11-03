@@ -84,6 +84,7 @@ describe("sync", () => {
           status: "active",
           consentExpiresAt: "2027-06-01T00:00:00.000Z",
           lastSyncedAt: "2026-11-02T12:00:00.000Z",
+          importVersion: 2,
           lastErrorCode: null,
           lastSyncHadData: false,
           lastDataThrough: null,

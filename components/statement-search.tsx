@@ -15,7 +15,7 @@ type Group = {
   amountLabel: string;
   lastLabel: string;
   status: "plan" | "suggested" | "ignored" | null;
-  charges: { date: string; label: string; amount: string }[];
+  charges: { id: string; date: string; label: string; amount: string; description: string }[];
 };
 
 const STATUS_LABEL: Record<NonNullable<Group["status"]>, string> = {
@@ -24,7 +24,7 @@ const STATUS_LABEL: Record<NonNullable<Group["status"]>, string> = {
   ignored: "Você recusou",
 };
 
-const EXAMPLES = ["ifood", "gran", "openai", "netflix"];
+const EXAMPLES = ["ifood", "gran", "openai", "ebanx", "netflix"];
 
 function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
@@ -35,6 +35,9 @@ export function StatementSearch<M>({ onConfirmed }: { onConfirmed: (model: M) =>
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [groups, setGroups] = useState<Group[] | null>(null);
+  const [plans, setPlans] = useState<{ id: string; name: string }[]>([]);
+  const [selected, setSelected] = useState<Record<string, string[]>>({});
+  const [targetPlan, setTargetPlan] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -51,8 +54,11 @@ export function StatementSearch<M>({ onConfirmed }: { onConfirmed: (model: M) =>
       try {
         const response = await fetch(`/api/search?q=${encodeURIComponent(text)}`);
         if (!response.ok) throw new Error("search");
-        const data = (await response.json()) as { groups: Group[] };
-        if (id === request.current) setGroups(data.groups);
+        const data = (await response.json()) as { groups: Group[]; plans: { id: string; name: string }[] };
+        if (id === request.current) {
+          setGroups(data.groups);
+          setPlans(data.plans ?? []);
+        }
       } catch {
         if (id === request.current) setFailed(true);
       } finally {
@@ -82,6 +88,29 @@ export function StatementSearch<M>({ onConfirmed }: { onConfirmed: (model: M) =>
     }
   }
 
+  async function linkToPlan(group: Group) {
+    const ids = selected[group.key] ?? [];
+    const subscriptionId = targetPlan[group.key];
+    if (!subscriptionId || ids.length === 0) return;
+    setSaving(group.key);
+    try {
+      const response = await fetch("/api/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "link-existing", key: group.key, subscriptionId, transactionIds: ids }),
+      });
+      if (!response.ok) throw new Error("link");
+      onConfirmed((await response.json()) as M);
+      setSelected((current) => ({ ...current, [group.key]: [] }));
+      const fresh = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`);
+      if (fresh.ok) setGroups(((await fresh.json()) as { groups: Group[] }).groups);
+    } catch {
+      setFailed(true);
+    } finally {
+      setSaving(null);
+    }
+  }
+
   return (
     <>
       <Button
@@ -103,6 +132,8 @@ export function StatementSearch<M>({ onConfirmed }: { onConfirmed: (model: M) =>
             setQuery("");
             setGroups(null);
             setExpanded(null);
+            setSelected({});
+            setTargetPlan({});
             setFailed(false);
           }
         }}
@@ -110,7 +141,7 @@ export function StatementSearch<M>({ onConfirmed }: { onConfirmed: (model: M) =>
         <DialogContent data-testid="search-dialog" className="max-h-[88dvh] grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)] sm:top-[12%] sm:max-w-lg sm:translate-y-0">
           <div>
             <DialogTitle>Buscar no extrato</DialogTitle>
-            <DialogDescription>Os últimos 14 meses do cartão. Marque o que for assinatura e o Ciclo passa a reconhecer sozinho.</DialogDescription>
+            <DialogDescription>Os últimos 14 meses das contas e cartões conectados. Você pode confirmar uma assinatura ou vincular pagamentos a um plano existente.</DialogDescription>
           </div>
           <label className="flex h-11 items-center gap-2 rounded-xl border bg-background px-3 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring">
             <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -189,14 +220,55 @@ export function StatementSearch<M>({ onConfirmed }: { onConfirmed: (model: M) =>
                       <p className="-mt-1 px-3.5 pb-2 text-xs text-muted-foreground">{STATUS_LABEL[group.status]}</p>
                     )}
                     {expanded === group.key && (
-                      <ul className="border-t px-3.5 py-2 text-[13px]">
-                        {group.charges.map((charge) => (
-                          <li key={`${charge.date}-${charge.amount}`} className="flex justify-between py-1 tabular-nums text-muted-foreground">
-                            <span>{charge.label}</span>
-                            <span className="text-foreground">{charge.amount}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="space-y-3 border-t px-3.5 py-3 text-[13px]">
+                        <p className="text-xs text-muted-foreground">Selecione apenas os pagamentos que pertencem à assinatura.</p>
+                        <ul className="space-y-2">
+                          {group.charges.map((charge) => (
+                            <li key={charge.id}>
+                              <label className="flex cursor-pointer items-center gap-2 text-muted-foreground">
+                                <input
+                                  type="checkbox"
+                                  data-testid="search-charge-select"
+                                  checked={(selected[group.key] ?? []).includes(charge.id)}
+                                  onChange={(event) => setSelected((current) => ({
+                                    ...current,
+                                    [group.key]: event.target.checked
+                                      ? [...(current[group.key] ?? []), charge.id]
+                                      : (current[group.key] ?? []).filter((id) => id !== charge.id),
+                                  }))}
+                                  className="size-4 shrink-0 accent-primary"
+                                />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block">{charge.label} · {charge.amount}</span>
+                                  <span className="block truncate text-xs">{charge.description}</span>
+                                </span>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                        {plans.length > 0 && (
+                          <div className="flex flex-col gap-2 border-t pt-3">
+                            <select
+                              data-testid="search-target-plan"
+                              aria-label="Assinatura para vincular pagamentos"
+                              value={targetPlan[group.key] ?? ""}
+                              onChange={(event) => setTargetPlan((current) => ({ ...current, [group.key]: event.target.value }))}
+                              className="h-9 w-full rounded-lg border bg-background px-2 text-sm text-foreground"
+                            >
+                              <option value="">Escolha uma assinatura existente</option>
+                              {plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
+                            </select>
+                            <Button
+                              size="sm"
+                              data-testid="search-link-plan"
+                              disabled={saving === group.key || !targetPlan[group.key] || !(selected[group.key]?.length)}
+                              onClick={() => linkToPlan(group)}
+                            >
+                              {saving === group.key ? "Salvando…" : "Vincular pagamentos selecionados"}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </li>
                 ))}

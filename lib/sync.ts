@@ -1,5 +1,5 @@
 import { attachKnownCharges, dropShadowedSuggestions, mergeDetections, pruneSuggestions } from "@/lib/actions";
-import { todayInSaoPaulo, transactionQueries, windowStart } from "@/lib/dates";
+import { CURRENT_IMPORT_VERSION, todayInSaoPaulo, transactionQueries, windowStart } from "@/lib/dates";
 import { ensureLogos } from "@/lib/logos/resolve";
 import { detect, knownMerchants } from "@/lib/matching";
 import { accountSummary, itemIdsForRun, mapPluggyTransaction, replaceSiblings, upsertConnectionFromItem } from "@/lib/pluggy/map";
@@ -61,6 +61,7 @@ async function pullTransactions(pluggy: PluggySource, connection: Connection, no
       accountId: account.id,
       lastSyncedAt: connection.lastSyncedAt,
       today,
+      importVersion: connection.importVersion,
     });
     for (const query of queries) {
       assertSingleDateParam(query);
@@ -139,6 +140,11 @@ export async function syncItem(deps: SyncDeps, itemId: string, event: string, de
         type: row.type,
         category: row.category,
         operationType: row.operationType,
+        status: row.status,
+        paymentMethod: row.paymentMethod,
+        merchantName: row.merchantName,
+        counterpartyName: row.counterpartyName,
+        counterpartyKind: row.counterpartyKind,
       })),
       state.ignoredDescriptors,
       today,
@@ -150,11 +156,12 @@ export async function syncItem(deps: SyncDeps, itemId: string, event: string, de
   if (event === "item/created") state.connections = replaceSiblings(state.connections, item);
   const dates = fetched.map((row) => row.chargeDate).sort();
   connection.lastSyncedAt = now.toISOString();
+  connection.importVersion = CURRENT_IMPORT_VERSION;
   connection.lastSyncHadData = fetched.length > 0;
   if (dates.at(-1)) connection.lastDataThrough = dates.at(-1) ?? null;
   let next;
   try {
-    next = dropShadowedSuggestions(pruneSuggestions(attachKnownCharges(mergeDetections(state, detections, true), rows), detections));
+    next = dropShadowedSuggestions(pruneSuggestions(mergeDetections(attachKnownCharges(state, rows), detections, true), detections));
   } catch (error) {
     throw asStep(error, "detect_failed");
   }

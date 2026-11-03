@@ -22,6 +22,8 @@ export type Connection = {
   lastErrorCode: string | null;
   lastSyncHadData: boolean;
   lastDataThrough: string | null;
+  /** Completed transaction import contract version. */
+  importVersion?: number;
   /** Cards and accounts Pluggy listed on the last read. Empty until the first read. */
   accounts?: ConnectionAccount[];
 };
@@ -46,6 +48,8 @@ export type Subscription = {
   suggestionLabel: string | null;
   /** Link the user set for the Gerenciar button. Wins over the catalog and the store. */
   manageUrl?: string | null;
+  /** Explicitly approved merchant + account patterns; never learned from similar prices alone. */
+  paymentMatches?: { key: string; accountId: string; amount: number }[];
 };
 
 export type Charge = {
@@ -74,6 +78,14 @@ export type StoredTx = {
   type?: string | null;
   category?: string | null;
   operationType?: string | null;
+  originalAmount?: number | null;
+  status?: string | null;
+  descriptionRaw?: string | null;
+  merchantName?: string | null;
+  counterpartyName?: string | null;
+  /** Only business / personal classification; never store document numbers. */
+  counterpartyKind?: "business" | "person" | null;
+  paymentMethod?: string | null;
 };
 
 export type ScreenAction = {

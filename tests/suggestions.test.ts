@@ -321,13 +321,9 @@ describe("last charge label", () => {
 });
 
 describe("stored transactions", () => {
-  it("does not store credits, pix or interest", () => {
-    expect(
-      mapPluggyTransaction({ id: "c", description: "Pix Recebido Ana", amount: 250, date: "2026-10-01", type: "CREDIT" }, "item", "acc"),
-    ).toBeNull();
-    expect(
-      mapPluggyTransaction({ id: "j", description: "Juros Por Atraso", amount: 0.16, date: "2026-10-01", type: "DEBIT" }, "item", "acc"),
-    ).toBeNull();
+  it("retains incoming Pix, fees and merchant charges but excludes them from subscription detection", () => {
+    expect(mapPluggyTransaction({ id: "c", description: "Pix Recebido Ana", amount: 250, date: "2026-10-01", type: "CREDIT" }, "item", "acc")?.type).toBe("CREDIT");
+    expect(mapPluggyTransaction({ id: "j", description: "Juros Por Atraso", amount: 0.16, date: "2026-10-01", type: "DEBIT" }, "item", "acc")?.amount).toBe(0.16);
     const kept = mapPluggyTransaction(
       { id: "n", description: "NETFLIX.COM", amount: 59.9, date: "2026-10-12", type: "DEBIT", currencyCode: "BRL" },
       "item",

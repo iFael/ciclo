@@ -73,13 +73,15 @@ export type TransactionQuery = {
  * rules dropped (bank debits, intermediary descriptors) come back.
  */
 export const FULL_REREAD_BEFORE = "2026-11-02T06:00:00.000Z";
+export const CURRENT_IMPORT_VERSION = 2;
 
 export function transactionQueries(input: {
   accountId: string;
   lastSyncedAt: string | null;
   today: string;
+  importVersion?: number;
 }): TransactionQuery[] {
-  if (!input.lastSyncedAt || input.lastSyncedAt < FULL_REREAD_BEFORE) {
+  if ((input.importVersion ?? CURRENT_IMPORT_VERSION) < CURRENT_IMPORT_VERSION || !input.lastSyncedAt || input.lastSyncedAt < FULL_REREAD_BEFORE) {
     return [{ accountId: input.accountId, dateFrom: addMonthsClamp(input.today, -HISTORY_MONTHS) }];
   }
   const created = new Date(input.lastSyncedAt);

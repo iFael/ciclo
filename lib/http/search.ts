@@ -2,7 +2,7 @@ import { windowStart, todayInSaoPaulo } from "@/lib/dates";
 import { resolveDeps } from "@/lib/deps";
 import { isAuthorized } from "@/lib/http/gate";
 import { prepareScreen } from "@/lib/present";
-import { confirmFromSearch, searchStatement } from "@/lib/search";
+import { confirmFromSearch, linkPaymentsToPlan, searchStatement } from "@/lib/search";
 import { ConfigError, safeLog } from "@/lib/security";
 import { storeLogoCache } from "@/lib/store";
 
@@ -17,13 +17,19 @@ export async function handleSearch(request: Request): Promise<Response> {
     const rows = await deps.store.transactionsSince(windowStart(today, false));
     if (request.method === "GET") {
       const query = (new URL(request.url).searchParams.get("q") ?? "").slice(0, MAX_QUERY);
-      return Response.json({ groups: searchStatement(state, rows, query) });
+      return Response.json({
+        groups: searchStatement(state, rows, query),
+        plans: state.subscriptions.filter((plan) => plan.status === "confirmed").map((plan) => ({ id: plan.id, name: plan.planName })),
+      });
     }
-    const body = (await request.json().catch(() => ({}))) as { key?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { key?: unknown; action?: unknown; subscriptionId?: unknown; transactionIds?: unknown };
     const key = typeof body.key === "string" ? body.key.slice(0, 200) : "";
-    if (!key) return Response.json({ error: "Busca inválida." }, { status: 400 });
-    const next = confirmFromSearch(state, rows, key, today);
-    if (next === state) return Response.json({ error: "Nada encontrado para confirmar." }, { status: 404 });
+    if (body.action !== "link-existing" && !key) return Response.json({ error: "Busca inválida." }, { status: 400 });
+    const next = body.action === "link-existing"
+      ? linkPaymentsToPlan(state, rows, typeof body.subscriptionId === "string" ? body.subscriptionId : "",
+          Array.isArray(body.transactionIds) && body.transactionIds.every((id) => typeof id === "string") ? body.transactionIds.slice(0, 15) : [], key)
+      : confirmFromSearch(state, rows, key, today);
+    if (next === state) return Response.json({ error: "Nenhum pagamento válido para vincular." }, { status: 400 });
     await deps.store.save(next);
     return Response.json(await prepareScreen(next, deps.now(), storeLogoCache(deps.store)));
   } catch (error) {

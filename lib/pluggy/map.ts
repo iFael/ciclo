@@ -1,6 +1,5 @@
 import { isForeignService } from "@/lib/catalog";
 import { chargeDateOf, classifyDescriptor } from "@/lib/matching";
-import { excludedKind } from "@/lib/noise";
 import type { Connection, ConnectionAccount, ConnectionStatus } from "@/lib/types";
 import type { PluggyAccount, PluggyItem, PluggyTransaction } from "@/lib/pluggy/types";
 import type { StoredTx } from "@/lib/types";
@@ -29,6 +28,7 @@ export function upsertConnectionFromItem(connections: Connection[], item: Pluggy
     lastErrorCode: mapped.errorCode,
     lastSyncHadData: current?.lastSyncHadData ?? false,
     lastDataThrough: current?.lastDataThrough ?? null,
+    importVersion: current?.importVersion ?? 1,
     accounts: current?.accounts ?? [],
   };
   return [...connections.filter((connection) => connection.itemId !== item.id), row];
@@ -119,32 +119,30 @@ export function chargeAmount(tx: PluggyTransaction): number {
   return base;
 }
 
+/** Keep all bank movements; classification happens later, never at ingestion. */
 export function mapPluggyTransaction(tx: PluggyTransaction, itemId: string, accountId: string): StoredTx | null {
   const description = tx.description ?? "";
   const amount = chargeAmount(tx);
-  if (
-    excludedKind({
-      description,
-      amount,
-      type: tx.type,
-      category: tx.category,
-      operationType: tx.operationType,
-    })
-  ) {
-    return null;
-  }
   const service = classifyDescriptor(description);
   const foreignCharge = Boolean(service && isForeignService(service)) || Boolean(tx.currencyCode && tx.currencyCode !== "BRL");
+  const receiver = tx.paymentData?.receiver;
   return {
     id: tx.id,
     itemId,
     accountId: tx.accountId || accountId,
     amount,
+    originalAmount: tx.amount,
     description,
+    descriptionRaw: tx.descriptionRaw ?? null,
     chargeDate: chargeDateOf(tx),
     foreignCharge,
     type: tx.type ?? null,
+    status: tx.status ?? null,
     category: tx.category ?? null,
     operationType: tx.operationType ?? null,
+    merchantName: tx.merchant?.name ?? tx.merchant?.businessName ?? null,
+    counterpartyName: receiver?.name ?? null,
+    counterpartyKind: receiver?.documentNumber?.type === "CNPJ" ? "business" : receiver?.documentNumber?.type === "CPF" ? "person" : null,
+    paymentMethod: tx.paymentData?.paymentMethod ?? null,
   };
 }

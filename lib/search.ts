@@ -1,8 +1,10 @@
 import { dropShadowedSuggestions, mergeDetections } from "@/lib/actions";
 import { serviceInfo } from "@/lib/catalog";
 import { formatBrl, formatDayMonthYear, round2 } from "@/lib/format";
-import { classifyDescriptor, detect, excludedKind, isAppleBill, merchantIgnoreToken, type CandidateTx } from "@/lib/matching";
+import { classifyDescriptor, detect, isAppleBill, merchantIgnoreToken, type CandidateTx } from "@/lib/matching";
 import { merchantDescriptor, normalizeDescriptor } from "@/lib/text";
+import { canLinkPayment, isPix, paymentKey } from "@/lib/payment-identity";
+import { withinPercent } from "@/lib/matching";
 import type { AppState, StoredTx } from "@/lib/types";
 
 /**
@@ -24,7 +26,7 @@ export type SearchGroup = {
   amountLabel: string;
   lastLabel: string;
   status: "plan" | "suggested" | "ignored" | null;
-  charges: { date: string; label: string; amount: string }[];
+  charges: { id: string; date: string; label: string; amount: string; description: string }[];
 };
 
 function titleCase(normalized: string): string {
@@ -38,7 +40,8 @@ function titleCase(normalized: string): string {
 const APPLE_KEY = "apple";
 
 /** One search group per service: spellings of the same merchant stay together. */
-export function searchKeyOf(description: string): string {
+export function searchKeyOf(description: string, transaction?: StoredTx): string {
+  if (transaction && isPix(transaction)) return `payee:${paymentKey(transaction)}`;
   if (isAppleBill(description)) return APPLE_KEY;
   const service = classifyDescriptor(description);
   return service ? `svc:${service}` : merchantDescriptor(description);
@@ -49,7 +52,8 @@ function serviceOfKey(key: string): string | null {
   return key.startsWith("svc:") ? key.slice(4) : null;
 }
 
-function statusOf(state: AppState, key: string, descriptors: Set<string>): SearchGroup["status"] {
+function statusOf(state: AppState, key: string, descriptors: Set<string>, txIds: Set<string>): SearchGroup["status"] {
+  if (state.charges.some((charge) => txIds.has(charge.transactionId) && state.subscriptions.some((plan) => plan.id === charge.subscriptionId && plan.status === "confirmed"))) return "plan";
   const service = serviceOfKey(key);
   for (const subscription of state.subscriptions) {
     const mine =
@@ -69,10 +73,10 @@ export function searchStatement(state: AppState, rows: StoredTx[], query: string
   const compact = needle.replace(/ /g, "");
   const groups = new Map<string, StoredTx[]>();
   for (const row of rows) {
-    if (excludedKind(row)) continue;
-    const text = normalizeDescriptor(row.description);
+    if (!canLinkPayment(row)) continue;
+    const text = normalizeDescriptor([row.description, row.descriptionRaw, row.merchantName, row.counterpartyName].filter(Boolean).join(" "));
     if (!text.includes(needle) && !text.replace(/ /g, "").includes(compact)) continue;
-    const key = searchKeyOf(row.description);
+    const key = searchKeyOf(row.description, row);
     const list = groups.get(key) ?? [];
     list.push(row);
     groups.set(key, list);
@@ -87,13 +91,13 @@ export function searchStatement(state: AppState, rows: StoredTx[], query: string
       const descriptors = new Set(sorted.map((row) => merchantDescriptor(row.description)));
       return {
         key,
-        name: service ? (serviceInfo(service)?.serviceName ?? titleCase(merchantDescriptor(sorted[0].description))) : titleCase(key),
+        name: service ? (serviceInfo(service)?.serviceName ?? titleCase(merchantDescriptor(sorted[0].description))) : titleCase(key.startsWith("payee:") ? key.slice(6) : key),
         count: sorted.length,
         months: new Set(sorted.map((row) => row.chargeDate.slice(0, 7))).size,
         amountLabel: Math.abs(max - min) < 0.005 ? formatBrl(round2(min)) : `${formatBrl(round2(min))} a ${formatBrl(round2(max))}`,
         lastLabel: formatDayMonthYear(sorted[0].chargeDate),
-        status: statusOf(state, key, descriptors),
-        charges: sorted.slice(0, MAX_CHARGES).map((row) => ({ date: row.chargeDate, label: formatDayMonthYear(row.chargeDate), amount: formatBrl(round2(row.amount)) })),
+        status: statusOf(state, key, descriptors, new Set(sorted.map((row) => row.id))),
+        charges: sorted.slice(0, MAX_CHARGES).map((row) => ({ id: row.id, date: row.chargeDate, label: formatDayMonthYear(row.chargeDate), amount: formatBrl(round2(row.amount)), description: row.description })),
         sortDate: sorted[0].chargeDate,
       };
     })
@@ -108,8 +112,8 @@ export function searchStatement(state: AppState, rows: StoredTx[], query: string
  */
 export function confirmFromSearch(input: AppState, rows: StoredTx[], key: string, today: string): AppState {
   const mine: CandidateTx[] = rows
-    .filter((row) => !excludedKind(row) && searchKeyOf(row.description) === key)
-    .map((row) => ({ id: row.id, description: row.description, amount: row.amount, chargeDate: row.chargeDate, foreignCharge: row.foreignCharge }));
+    .filter((row) => canLinkPayment(row) && searchKeyOf(row.description, row) === key)
+    .map((row) => ({ id: row.id, description: row.description, amount: row.amount, chargeDate: row.chargeDate, foreignCharge: row.foreignCharge, type: row.type, category: row.category, operationType: row.operationType, status: row.status, paymentMethod: row.paymentMethod, merchantName: row.merchantName, counterpartyName: row.counterpartyName, counterpartyKind: row.counterpartyKind }));
   if (mine.length === 0) return input;
   const state = structuredClone(input);
   const descriptors = [...new Set(mine.map((row) => merchantDescriptor(row.description)))];
@@ -136,6 +140,48 @@ export function confirmFromSearch(input: AppState, rows: StoredTx[], key: string
     row.dismissedAt = null;
   }
   return dropShadowedSuggestions(merged);
+}
+
+/** Explicit user-approved payments, never silently inferred from a shared processor name. */
+export function linkPaymentsToPlan(
+  input: AppState,
+  rows: StoredTx[],
+  subscriptionId: string,
+  selectedIds: string[],
+  groupKey: string,
+): AppState {
+  const plan = input.subscriptions.find((item) => item.id === subscriptionId && item.status === "confirmed");
+  const ids = new Set(selectedIds);
+  if (!plan || ids.size === 0 || ids.size > 14) return input;
+  const selected = rows.filter((tx) => ids.has(tx.id));
+  if (selected.length !== ids.size || new Set(selected.map((tx) => tx.chargeDate)).size !== selected.length || selected.some((tx) =>
+    searchKeyOf(tx.description, tx) !== groupKey ||
+    !canLinkPayment(tx) || !withinPercent(plan.amount, tx.amount, 0.15) ||
+    input.charges.some((charge) => charge.transactionId === tx.id || (charge.subscriptionId === plan.id && charge.chargeDate === tx.chargeDate))
+  )) return input;
+  const state = structuredClone(input);
+  const target = state.subscriptions.find((item) => item.id === subscriptionId)!;
+  for (const tx of selected) {
+    state.charges.push({ subscriptionId, chargeDate: tx.chargeDate, amount: tx.amount, transactionId: tx.id, resolved: false });
+  }
+  const ordered = selected.toSorted((a, b) => b.chargeDate.localeCompare(a.chargeDate));
+  if (!target.expectedChargeDate || ordered[0].chargeDate > target.expectedChargeDate) target.expectedChargeDate = ordered[0].chargeDate;
+  // A pattern is learned only from repeated, explicitly confirmed movements of one payee/account.
+  const allFromPlan = state.charges.filter((charge) => charge.subscriptionId === subscriptionId);
+  for (const tx of selected.filter(isPix)) {
+    const key = paymentKey(tx);
+    const similar = rows.filter((row) =>
+      isPix(row) && canLinkPayment(row) && row.accountId === tx.accountId &&
+      paymentKey(row) === key && withinPercent(row.amount, tx.amount, 0.15) &&
+      allFromPlan.some((charge) => charge.transactionId === row.id),
+    );
+    if (new Set(similar.map((row) => row.chargeDate.slice(0, 7))).size < 2) continue;
+    const match = { key, accountId: tx.accountId, amount: tx.amount };
+    if (!(target.paymentMatches ?? []).some((item) => item.key === key && item.accountId === tx.accountId && withinPercent(item.amount, match.amount, 0.15))) {
+      target.paymentMatches = [...(target.paymentMatches ?? []), match];
+    }
+  }
+  return state;
 }
 
 function nextDay(iso: string): string {
