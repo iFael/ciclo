@@ -792,5 +792,5 @@ test("alinha preços e ações com e sem link no desktop, sem perder o layout mo
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(rows.nth(2).getByTestId("add-manage-link")).toBeVisible();
   await expect(rows.nth(2).getByTestId("remove")).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
 });
