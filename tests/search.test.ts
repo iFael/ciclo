@@ -23,9 +23,10 @@ const rows: StoredTx[] = [
 describe("statement search", () => {
   it("groups hits by merchant across the whole window and skips noise", () => {
     const groups = searchStatement(emptyState(), rows, "ifood");
-    // Every spelling of the same service lands in one group.
-    expect(groups.map((group) => group.key)).toEqual(["svc:ifood-clube"]);
-    expect(groups[0]).toMatchObject({ name: "iFood Clube", count: 4, months: 4, amountLabel: "R$ 9,90 a R$ 81,10", lastLabel: "10/09/2026", status: null });
+    // Generic iFood purchases are not the same service as iFood Clube.
+    expect(groups.map((group) => group.key)).toEqual(["svc:ifood-clube", "IFOOD"]);
+    expect(groups[0]).toMatchObject({ name: "iFood Clube", count: 2, months: 2, amountLabel: "R$ 9,90", lastLabel: "10/09/2026", status: null });
+    expect(groups[1]).toMatchObject({ name: "Ifood", count: 2, months: 2, amountLabel: "R$ 54,30 a R$ 81,10", lastLabel: "21/07/2026", status: null });
     expect(searchStatement(emptyState(), rows, "i")).toEqual([]);
     expect(searchStatement(emptyState(), rows, "granfaculdade")[0]?.key).toBe("GRAN FACULDADE");
   });

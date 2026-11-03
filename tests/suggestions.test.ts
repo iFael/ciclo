@@ -135,14 +135,17 @@ describe("noise and generic descriptors", () => {
     }
   });
 
-  it("recognizes iFood Clube behind the IFD intermediary", () => {
+  it("does not call generic iFood spending a Clube subscription without confirmation", () => {
     const found = detect(months("IFD*iFood", RECENT, 7.95, "ifd"), [], TODAY);
-    expect(found.map((item) => item.service)).toEqual(["ifood-clube"]);
+    expect(found).toHaveLength(1);
+    expect(found[0].service).toBe("unknown");
+    expect(detect(months("IFD*iFood", ["2026-10-30"], 53.3, "order"), [], TODAY)).toEqual([]);
   });
 
   it("keeps a monthly plan monthly across a two-month hole in the feed", () => {
     const dates = ["2025-11-22", "2026-02-22", "2026-03-22", "2026-04-22", "2026-05-22", "2026-06-22", "2026-07-22", "2026-10-22"];
-    const found = detect(months("IFD*iFood", dates, 7.95, "hole"), [], TODAY);
+    const known = [{ merchantKey: "ifood-clube", service: "ifood-clube", descriptors: ["IFOOD"] }];
+    const found = detect(months("IFD*iFood", dates, 7.95, "hole"), [], TODAY, known);
     expect(found).toHaveLength(1);
     expect(found[0].service).toBe("ifood-clube");
     expect(found[0].cadence).toBe("monthly");
