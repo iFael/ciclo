@@ -216,6 +216,10 @@ export function mergeDetections(
       existing.status = "suggested";
     }
     if (existing.status === "ignored" || existing.status === "cancelled") continue;
+    // A merchant may sell individual purchases as well as subscriptions.
+    // Never use a large, unconfirmed price jump to change a confirmed plan
+    // or link the unrelated purchase to its charge history.
+    if (existing.status === "confirmed" && !withinPercent(existing.amount, detection.amount, 0.15)) continue;
     for (const charge of detection.charges) {
       const already = state.charges.some(
         (item) => item.subscriptionId === existing.id && item.chargeDate === charge.chargeDate,
