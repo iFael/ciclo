@@ -1,11 +1,13 @@
 import { applyAction, cleanManageUrl, type PlanAction } from "@/lib/actions";
 import { serviceInfo } from "@/lib/catalog";
 import { resolveDeps } from "@/lib/deps";
+import { todayInSaoPaulo, windowStart } from "@/lib/dates";
 import { isAuthorized } from "@/lib/http/gate";
 import { normalizeDomain } from "@/lib/logos/infer";
 import { resolveLogo, adaptFetch } from "@/lib/logos/resolve";
 import { prepareScreen } from "@/lib/present";
 import { ConfigError, safeLog } from "@/lib/security";
+import { linkSuggestionToPlan } from "@/lib/search";
 import { storeLogoCache } from "@/lib/store";
 
 const ACTIONS = new Set([
@@ -20,6 +22,7 @@ const ACTIONS = new Set([
   "ignore-charging",
   "set-domain",
   "set-manage-url",
+  "link-suggestion",
 ]);
 
 /** Store pages manage many services: their logo is the store's, not the plan's. */
@@ -64,9 +67,18 @@ export async function handlePlans(request: Request): Promise<Response> {
     const state = await deps.store.load();
     const cache = storeLogoCache(deps.store);
     if (request.method === "GET") return Response.json(await prepareScreen(state, deps.now(), cache));
-    const body = (await request.json()) as Partial<PlanAction> & { service?: string; domain?: string; replaces?: unknown; url?: unknown };
+    const body = (await request.json()) as { action?: string; id?: string; service?: string; domain?: string; replaces?: unknown; url?: unknown; subscriptionId?: unknown };
     if (!body.action || !ACTIONS.has(body.action) || !("id" in body) || !body.id) {
       return Response.json({ error: "Ação inválida." }, { status: 400 });
+    }
+    if (body.action === "link-suggestion") {
+      if (typeof body.subscriptionId !== "string") return Response.json({ error: "Selecione uma assinatura existente." }, { status: 400 });
+      const today = todayInSaoPaulo(deps.now());
+      const rows = await deps.store.transactionsSince(windowStart(today, false));
+      const next = linkSuggestionToPlan(state, rows, body.id, body.subscriptionId);
+      if (next === state) return Response.json({ error: "Não foi possível vincular estes pagamentos. Confira o plano e os valores." }, { status: 400 });
+      await deps.store.save(next);
+      return Response.json(await prepareScreen(next, deps.now(), cache));
     }
     if (body.action === "set-domain") {
       const domain = normalizeDomain(body.domain ?? "");

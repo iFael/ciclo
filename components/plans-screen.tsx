@@ -53,6 +53,7 @@ type Suggestion = {
   logoUrl?: string | null;
   logoFallback?: boolean;
   confidence?: Confidence | null;
+  chargeCount?: number;
 };
 
 const UNDO_TOAST_MS = 5000;
@@ -217,6 +218,10 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   };
   const [syncError, setSyncError] = useState<string | null>(null);
   const [editingLogo, setEditingLogo] = useState<string | null>(null);
+  const [linkingSuggestion, setLinkingSuggestion] = useState<string | null>(null);
+  const [linkingTarget, setLinkingTarget] = useState("");
+  const [linkingBusy, setLinkingBusy] = useState(false);
+  const [linkingError, setLinkingError] = useState<string | null>(null);
   const [touring, setTouring] = useState(false);
   const tourChecked = useRef(false);
   const desktop = useDesktop();
@@ -381,6 +386,30 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
     if (!next) return;
     event.preventDefault();
     selectTab(next, true);
+  }
+
+  async function linkSuggestion(suggestion: Suggestion) {
+    if (!linkingTarget || linkingBusy) return;
+    setLinkingBusy(true);
+    setLinkingError(null);
+    try {
+      const response = await fetch("/api/plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "link-suggestion", id: suggestion.id, subscriptionId: linkingTarget }),
+      });
+      const data = (await response.json()) as Model & { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Não foi possível vincular estes pagamentos.");
+      setModel(data);
+      setLinkingSuggestion(null);
+      setLinkingTarget("");
+      setSyncToast({ title: "Pagamentos vinculados", detail: "A sugestão foi incorporada à assinatura existente, sem duplicar o valor." });
+      haptic([10, 40, 16]);
+    } catch (error) {
+      setLinkingError(error instanceof Error ? error.message : "Não foi possível vincular estes pagamentos.");
+    } finally {
+      setLinkingBusy(false);
+    }
   }
 
   async function confirmSuggestion(suggestion: Suggestion) {
@@ -1025,13 +1054,76 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                             </label>
                           )}
                           <div className="mt-auto flex gap-2 pt-4">
-                            <Button className="h-[42px] flex-1" data-testid="suggestion-yes" onClick={() => confirmSuggestion(suggestion)}>
+                            <Button className="h-[42px] flex-1" data-testid="suggestion-yes" disabled={linkingBusy} onClick={() => confirmSuggestion(suggestion)}>
                               É assinatura
                             </Button>
-                            <Button variant="outline" className="h-[42px] flex-1" data-testid="suggestion-no" onClick={() => act("ignore", suggestion.id)}>
+                            <Button variant="outline" className="h-[42px] flex-1" data-testid="suggestion-no" disabled={linkingBusy} onClick={() => act("ignore", suggestion.id)}>
                               Não é
                             </Button>
                           </div>
+                          {suggestion.chargeCount && [...model.cards, ...(model.inactiveCards ?? [])].length > 0 ? (
+                            <div className="mt-2">
+                              {linkingSuggestion !== suggestion.id ? (
+                                <Button
+                                  variant="outline"
+                                  className="h-[42px] w-full gap-2 text-sm"
+                                  data-testid="suggestion-link-existing"
+                                  onClick={() => {
+                                    setLinkingSuggestion(suggestion.id);
+                                    setLinkingTarget("");
+                                    setLinkingError(null);
+                                  }}
+                                >
+                                  <Link2 className="size-4" aria-hidden="true" />
+                                  Vincular a uma assinatura existente
+                                </Button>
+                              ) : (
+                                <div className="space-y-2 rounded-xl border p-3" data-testid="suggestion-link-form">
+                                  <p className="text-xs text-muted-foreground">
+                                    Vincular {suggestion.chargeCount} {suggestion.chargeCount === 1 ? "pagamento" : "pagamentos"} à assinatura escolhida, sem criar outro plano.
+                                  </p>
+                                  <label className="block text-sm font-medium">
+                                    Assinatura existente
+                                    <select
+                                      data-testid="suggestion-link-target"
+                                      className="mt-1.5 h-10 w-full min-w-0 rounded-lg border border-input bg-card px-2 text-sm text-foreground"
+                                      value={linkingTarget}
+                                      disabled={linkingBusy}
+                                      onChange={(event) => setLinkingTarget(event.target.value)}
+                                    >
+                                      <option value="">Selecione a assinatura</option>
+                                      {[...model.cards, ...(model.inactiveCards ?? [])].map((card) => (
+                                        <option key={card.id} value={card.id}>{card.planName}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  {linkingError && <p role="alert" className="text-xs text-destructive">{linkingError}</p>}
+                                  <div className="flex gap-2">
+                                    <Button
+                                      className="h-10 flex-1"
+                                      data-testid="suggestion-link-confirm"
+                                      disabled={!linkingTarget || linkingBusy}
+                                      onClick={() => linkSuggestion(suggestion)}
+                                    >
+                                      {linkingBusy ? "Vinculando…" : "Vincular pagamentos"}
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      className="h-10"
+                                      disabled={linkingBusy}
+                                      onClick={() => {
+                                        setLinkingSuggestion(null);
+                                        setLinkingTarget("");
+                                        setLinkingError(null);
+                                      }}
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
                         </Card>
                       ))}
                     </div>

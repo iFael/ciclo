@@ -184,6 +184,51 @@ export function linkPaymentsToPlan(
   return state;
 }
 
+/**
+ * Move the evidence of a suggested recurring charge to a confirmed plan.
+ * The suggestion already owns those transaction IDs, so it must be detached
+ * before reusing the existing validated linkPaymentsToPlan path.
+ */
+export function linkSuggestionToPlan(
+  input: AppState,
+  rows: StoredTx[],
+  suggestionId: string,
+  subscriptionId: string,
+): AppState {
+  const suggestion = input.subscriptions.find((item) => item.id === suggestionId && item.status === "suggested");
+  const target = input.subscriptions.find((item) => item.id === subscriptionId && item.status === "confirmed");
+  if (!suggestion || !target || suggestion.id === target.id) return input;
+
+  const evidence = input.charges.filter((charge) => charge.subscriptionId === suggestionId);
+  const ids = evidence.map((charge) => charge.transactionId);
+  if (ids.length === 0 || ids.length > 14 || new Set(ids).size !== ids.length) return input;
+
+  const selected = rows.filter((tx) => ids.includes(tx.id));
+  if (selected.length !== ids.length) return input;
+  const groupKey = searchKeyOf(selected[0].description, selected[0]);
+  if (selected.some((tx) => searchKeyOf(tx.description, tx) !== groupKey)) return input;
+
+  const detached = structuredClone(input);
+  detached.subscriptions = detached.subscriptions.filter((item) => item.id !== suggestionId);
+  detached.charges = detached.charges.filter((charge) => charge.subscriptionId !== suggestionId);
+
+  const linked = linkPaymentsToPlan(detached, rows, subscriptionId, ids, groupKey);
+  if (linked === detached) return input;
+
+  const plan = linked.subscriptions.find((item) => item.id === subscriptionId)!;
+  const months = new Set(selected.map((tx) => tx.chargeDate.slice(0, 7)));
+  const latest = [...selected].sort((a, b) => b.chargeDate.localeCompare(a.chargeDate))[0];
+  // Replace an FX estimate only when two or more confirmed months agree on
+  // an actual BRL amount; never guess a new price from a single payment.
+  if (plan.approximate && months.size >= 2 && selected.every((tx) =>
+    !tx.foreignCharge && withinPercent(tx.amount, latest.amount, 0.05)
+  )) {
+    plan.amount = round2(latest.amount);
+    plan.approximate = false;
+  }
+  return dropShadowedSuggestions(linked);
+}
+
 function nextDay(iso: string): string {
   const date = new Date(`${iso}T12:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + 1);
