@@ -149,6 +149,7 @@ export type ScreenCard = {
 export type ScreenSuggestion = {
   id: string;
   planName: string;
+  chargeCount: number;
   label: string | null;
   checked: boolean;
   priceLabel: string;

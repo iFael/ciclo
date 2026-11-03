@@ -197,6 +197,7 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
       return {
         id: subscription.id,
         planName: subscription.planName,
+        chargeCount: charges.length,
         appleGuess: guess,
         label: subscription.suggestionLabel,
         checked: subscription.checked,

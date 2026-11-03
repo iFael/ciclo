@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { attachKnownCharges } from "@/lib/actions";
+import { attachKnownCharges, dropShadowedSuggestions, mergeDetections } from "@/lib/actions";
 import { transactionQueries } from "@/lib/dates";
-import { detect } from "@/lib/matching";
+import { detect, knownMerchants } from "@/lib/matching";
 import { isSubscriptionCandidate, paymentKey } from "@/lib/payment-identity";
 import { mapPluggyTransaction } from "@/lib/pluggy/map";
 import { createMemoryStore } from "@/lib/memory-store";
 import { syncAll } from "@/lib/sync";
-import { linkPaymentsToPlan, searchStatement } from "@/lib/search";
+import { linkPaymentsToPlan, linkSuggestionToPlan, searchStatement } from "@/lib/search";
 import { emptyState } from "@/lib/store";
 import type { StoredTx, Subscription } from "@/lib/types";
 
@@ -77,6 +77,67 @@ describe("transaction intelligence", () => {
     const pending = { ...pix("pending", "Pix automático Ebanx", "2026-11-23"), status: "PENDING" };
     const following = attachKnownCharges(linked, [next, unrelated, expensive, incoming, pending]);
     expect(following.charges.map((charge) => charge.transactionId)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("moves a suggested Pix charge history to ChatGPT without duplicating the subscription or total", () => {
+    const suggestion: Subscription = {
+      ...plan, id: "ebanx", service: "unknown", planName: "Ebanx",
+      status: "suggested", merchantKey: "unknown:EBANX:10340",
+      amount: 103.4, approximate: false, descriptors: ["PAGAMENTO COM QR PIX EBANX LTDA", "PIX AUTOMATICO EBANX"],
+    };
+    const current = {
+      ...emptyState(),
+      subscriptions: [plan, suggestion],
+      charges: [
+        { subscriptionId: "chatgpt", transactionId: "july", chargeDate: "2026-07-19", amount: 103.4, resolved: false },
+        ...history.map((tx) => ({ subscriptionId: "ebanx", transactionId: tx.id, chargeDate: tx.chargeDate, amount: tx.amount, resolved: false })),
+      ],
+    };
+
+    const next = linkSuggestionToPlan(current, history, "ebanx", "chatgpt");
+    expect(next).not.toBe(current);
+    expect(next.subscriptions).toHaveLength(1);
+    expect(next.subscriptions[0]).toMatchObject({
+      id: "chatgpt", amount: 103.4, approximate: false, expectedChargeDate: "2026-10-19",
+      paymentMatches: [{ key: "EBANX", accountId: "mercado-pago", amount: 103.4 }],
+    });
+    expect(next.charges).toHaveLength(4);
+    expect(new Set(next.charges.map((charge) => charge.transactionId)).size).toBe(4);
+    expect(next.charges.filter((charge) => charge.subscriptionId === "chatgpt")).toHaveLength(4);
+    expect(current.subscriptions).toHaveLength(2); // original state is untouched
+    expect(linkSuggestionToPlan(next, history, "ebanx", "chatgpt")).toBe(next);
+
+    const future = pix("nov", "Pix automático Ebanx", "2026-11-19");
+    const attached = attachKnownCharges(next, [...history, future]);
+    expect(attached.charges.filter((charge) => charge.transactionId === "nov")).toHaveLength(1);
+    const detections = detect([...history, future], [], "2026-11-23", knownMerchants(attached.subscriptions));
+    const merged = dropShadowedSuggestions(mergeDetections(attached, detections, true));
+    expect(merged.subscriptions.filter((item) => item.status === "suggested")).toHaveLength(0);
+  });
+
+  it("rejects an ambiguous or unsafe suggestion transfer without modifying its original records", () => {
+    const suggestion: Subscription = {
+      ...plan, id: "ebanx", service: "unknown", planName: "Ebanx",
+      status: "suggested", merchantKey: "unknown:EBANX:10340",
+    };
+    const base = {
+      ...emptyState(),
+      subscriptions: [plan, suggestion],
+      charges: history.map((tx) => ({
+        subscriptionId: "ebanx", transactionId: tx.id, chargeDate: tx.chargeDate, amount: tx.amount, resolved: false,
+      })),
+    };
+    expect(linkSuggestionToPlan(base, history, "missing", "chatgpt")).toBe(base);
+    expect(linkSuggestionToPlan(base, history, "ebanx", "missing")).toBe(base);
+    expect(linkSuggestionToPlan(base, history, "ebanx", "ebanx")).toBe(base);
+    expect(linkSuggestionToPlan(base, [...history.slice(0, 2), { ...history[2], amount: 300 }], "ebanx", "chatgpt")).toBe(base);
+    expect(linkSuggestionToPlan(base, [...history.slice(0, 2), { ...history[2], type: "CREDIT" }], "ebanx", "chatgpt")).toBe(base);
+    expect(linkSuggestionToPlan(base, history.slice(0, 2), "ebanx", "chatgpt")).toBe(base);
+    const alreadyLinked = {
+      ...base,
+      charges: [...base.charges, { subscriptionId: "chatgpt", transactionId: "a", chargeDate: "2026-08-16", amount: 103.4, resolved: false }],
+    };
+    expect(linkSuggestionToPlan(alreadyLinked, history, "ebanx", "chatgpt")).toBe(alreadyLinked);
   });
 
   it("forces one full historical reread after the import contract upgrade", () => {
