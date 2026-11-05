@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { e2eBypass, publicSupabase } from "@/lib/env";
 import { endAllSessions, LAST_SEEN_COOKIE, sessionExpired } from "@/lib/security";
 
-const PUBLIC_PREFIXES = ["/login", "/auth", "/api/webhooks/pluggy", "/api/cron/sync", "/api/health"];
+const PUBLIC_PREFIXES = ["/login", "/auth", "/api/webhooks/pluggy", "/api/cron/sync", "/api/integrations/facts", "/api/health"];
 
 const PUBLIC_EXACT = new Set([
   "/api/auth/magic-link",
