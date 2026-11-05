@@ -2,7 +2,7 @@ import { resolveDeps } from "@/lib/deps";
 import { deliverReminders } from "@/lib/deliver";
 import { syncItem } from "@/lib/sync";
 import { pluggyWebhookSchema, type PluggyWebhook } from "@/lib/pluggy/schemas";
-import { ConfigError, safeEqual, safeLog } from "@/lib/security";
+import { ConfigError, safeEqual, safeLog } from "@/lib/security";\nimport { triggerFactsBankSync } from "@/lib/facts-bridge";
 
 export function webhookAuthorized(request: Request, secret: string): boolean {
   const url = new URL(request.url);
@@ -36,7 +36,7 @@ export async function handleWebhook(request: Request): Promise<Response> {
   try {
     const deps = await resolveDeps();
     if (!deps.pluggy) return Response.json({ error: "Configuração incompleta: PLUGGY_CLIENT_ID" }, { status: 503 });
-    await syncItem(deps, body.itemId, body.event ?? "item/updated", body.transactionIds ?? []);
+    await syncItem(deps, body.itemId, body.event ?? "item/updated", body.transactionIds ?? []);\n    await triggerFactsBankSync(body.event ?? "item/updated", body.transactionIds ?? []);
     try {
       await deliverReminders(deps);
     } catch (error) {
