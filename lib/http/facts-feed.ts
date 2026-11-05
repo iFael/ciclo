@@ -18,9 +18,16 @@ export async function handleFactsFeed(request: Request): Promise<Response> {
   const from = url.searchParams.get("from") ?? "";
   const name = url.searchParams.get("name")?.trim() || null;
   const refresh = url.searchParams.get("refresh") !== "0";
+  const paged = url.searchParams.has("page");
+  const pageString = url.searchParams.get("page") ?? "0";
+  const page = Number(pageString);
+  const pageSize = 200;
 
   if (!DATE_RE.test(from) || Number.isNaN(Date.parse(`${from}T00:00:00.000Z`))) {
     return Response.json({ error: "invalid_from" }, { status: 400 });
+  }
+  if (paged && (!/^\d{1,5}$/.test(pageString) || !Number.isSafeInteger(page) || page > 10000)) {
+    return Response.json({ error: "invalid_page" }, { status: 400 });
   }
   if (name && name.length > 160) {
     return Response.json({ error: "invalid_name" }, { status: 400 });
@@ -44,8 +51,11 @@ export async function handleFactsFeed(request: Request): Promise<Response> {
       ...transaction,
       institution: institutions.get(transaction.itemId) ?? null,
     }));
+    const start = paged ? page * pageSize : 0;
+    const selected = paged ? transactions.slice(start, start + pageSize) : transactions;
+    const nextPage = paged && start + selected.length < transactions.length ? page + 1 : null;
     return Response.json(
-      { ok: true, transactions },
+      { ok: true, transactions: selected, nextPage, total: transactions.length },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
