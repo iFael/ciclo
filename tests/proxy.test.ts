@@ -55,6 +55,7 @@ describe("proxy", () => {
     const sync = await statusOf("http://localhost:3000/api/sync", "POST");
     const logout = await statusOf("http://localhost:3000/api/auth/logout", "POST");
     const health = await statusOf("http://localhost:3000/api/health");
+    const factsFeed = await statusOf("http://localhost:3000/api/integrations/facts?from=2026-08-01&name=Agata");
     const login = await statusOf("http://localhost:3000/login");
     expect(home.status).toBe(307);
     expect(home.location).toBe("http://localhost:3000/login");
@@ -63,6 +64,9 @@ describe("proxy", () => {
     expect(isPublicPath("/api/sync")).toBe(false);
     expect(logout.status).toBe(307);
     expect(health.status).not.toBe(307);
+    expect(factsFeed.status).not.toBe(307);
+    expect(factsFeed.location).toBeNull();
+    expect(isPublicPath("/api/integrations/facts")).toBe(true);
     expect(login.status).not.toBe(307);
   });
 
