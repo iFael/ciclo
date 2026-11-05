@@ -16,27 +16,34 @@ export async function handleFactsFeed(request: Request): Promise<Response> {
 
   const url = new URL(request.url);
   const from = url.searchParams.get("from") ?? "";
-  const name = url.searchParams.get("name")?.trim() ?? "";
+  const name = url.searchParams.get("name")?.trim() || null;
+  const refresh = url.searchParams.get("refresh") !== "0";
 
   if (!DATE_RE.test(from) || Number.isNaN(Date.parse(`${from}T00:00:00.000Z`))) {
     return Response.json({ error: "invalid_from" }, { status: 400 });
   }
-  if (!name || name.length > 160) {
+  if (name && name.length > 160) {
     return Response.json({ error: "invalid_name" }, { status: 400 });
   }
 
   try {
     const deps = await resolveDeps();
-    const sync = await syncAll(deps);
-    if (!sync.ok) {
-      return Response.json(
-        { error: "bank_sync_failed", code: sync.code ?? "sync_failed" },
-        { status: 502, headers: { "Cache-Control": "no-store" } },
-      );
+    if (refresh) {
+      const sync = await syncAll(deps);
+      if (!sync.ok) {
+        return Response.json(
+          { error: "bank_sync_failed", code: sync.code ?? "sync_failed" },
+          { status: 502, headers: { "Cache-Control": "no-store" } },
+        );
+      }
     }
 
-    const rows = await deps.store.transactionsSince(from);
-    const transactions = factsFeedTransactions(rows, name);
+    const [rows, state] = await Promise.all([deps.store.transactionsSince(from), deps.store.load()]);
+    const institutions = new Map(state.connections.map((connection) => [connection.itemId, connection.institution]));
+    const transactions = factsFeedTransactions(rows, name).map((transaction) => ({
+      ...transaction,
+      institution: institutions.get(transaction.itemId) ?? null,
+    }));
     return Response.json(
       { ok: true, transactions },
       { headers: { "Cache-Control": "no-store" } },
