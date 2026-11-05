@@ -9,12 +9,15 @@ export type FactsFeedTransaction = {
   chargeDate: string;
   type: string | null;
   status: string | null;
+  category: string | null;
   operationType: string | null;
   description: string;
   descriptionRaw: string | null;
+  merchantName: string | null;
   counterpartyName: string | null;
   counterpartyKind: "person" | "business" | null;
   paymentMethod: string | null;
+  foreignCharge: boolean;
 };
 
 export function normalizeBankText(value: string): string {
@@ -27,11 +30,34 @@ export function normalizeBankText(value: string): string {
     .replace(/\s+/g, " ");
 }
 
-export function factsFeedTransactions(rows: StoredTx[], targetName: string): FactsFeedTransaction[] {
-  const target = normalizeBankText(targetName);
-  if (!target) return [];
+function mapTransaction(row: StoredTx): FactsFeedTransaction {
+  return {
+    id: row.id,
+    itemId: row.itemId,
+    accountId: row.accountId,
+    amount: row.amount,
+    originalAmount: row.originalAmount ?? null,
+    chargeDate: row.chargeDate,
+    type: row.type ?? null,
+    status: row.status ?? null,
+    category: row.category ?? null,
+    operationType: row.operationType ?? null,
+    description: row.description,
+    descriptionRaw: row.descriptionRaw ?? null,
+    merchantName: row.merchantName ?? null,
+    counterpartyName: row.counterpartyName ?? null,
+    counterpartyKind: row.counterpartyKind ?? null,
+    paymentMethod: row.paymentMethod ?? null,
+    foreignCharge: row.foreignCharge,
+  };
+}
 
-  return rows
+export function factsFeedTransactions(rows: StoredTx[], targetName?: string | null): FactsFeedTransaction[] {
+  const mapped = rows.map(mapTransaction);
+  const target = targetName ? normalizeBankText(targetName) : "";
+  if (!target) return mapped;
+
+  return mapped
     .filter((row) => row.type?.toUpperCase() === "DEBIT")
     .filter((row) => !row.status || row.status.toUpperCase() === "POSTED")
     .filter((row) => {
@@ -39,21 +65,5 @@ export function factsFeedTransactions(rows: StoredTx[], targetName: string): Fac
         .filter((value): value is string => Boolean(value))
         .map(normalizeBankText);
       return fields.some((value) => value.includes(target));
-    })
-    .map((row) => ({
-      id: row.id,
-      itemId: row.itemId,
-      accountId: row.accountId,
-      amount: row.amount,
-      originalAmount: row.originalAmount ?? null,
-      chargeDate: row.chargeDate,
-      type: row.type ?? null,
-      status: row.status ?? null,
-      operationType: row.operationType ?? null,
-      description: row.description,
-      descriptionRaw: row.descriptionRaw ?? null,
-      counterpartyName: row.counterpartyName ?? null,
-      counterpartyKind: row.counterpartyKind ?? null,
-      paymentMethod: row.paymentMethod ?? null,
-    }));
+    });
 }
