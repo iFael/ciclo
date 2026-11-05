@@ -4,8 +4,11 @@ import { factsBridgeAuthorized } from "@/lib/facts-bridge";
 import { safeLog } from "@/lib/security";
 
 const notificationSchema = z.object({
-  kind: z.enum(["bank_event", "bank_review"]),
+  kind: z.enum(["bank_event", "bank_review", "bank_insight"]),
   amountCents: z.number().int().positive(),
+  previousCents: z.number().int().nonnegative().optional(),
+  categoryLabel: z.string().trim().min(1).max(80).optional(),
+  periodMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(),
   occurredAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   direction: z.enum(["outgoing", "incoming"]),
   counterparty: z.string().trim().min(1).max(200).nullable(),
@@ -27,6 +30,35 @@ export async function handleFactsNotification(request: Request): Promise<Respons
   if (!parsed.success) return Response.json({ error: "invalid_notification" }, { status: 400 });
 
   const value = parsed.data;
+  if (value.kind === "bank_insight") {
+    if (value.previousCents === undefined || !value.categoryLabel || !value.periodMonth) {
+      return Response.json({ error: "invalid_insight" }, { status: 400 });
+    }
+    const percent = value.previousCents > 0
+      ? Math.round((value.amountCents - value.previousCents) / value.previousCents * 100) : 0;
+    const text = [
+      "Facts — alerta de gastos relacionados ao Noah",
+      "",
+      "Categoria: " + value.categoryLabel,
+      "Mês: " + value.periodMonth,
+      "Mês anterior: " + money(value.previousCents),
+      "Mês analisado: " + money(value.amountCents),
+      "Aumento: " + String(percent) + "%",
+      "",
+      "O alerta considera apenas despesas confirmadas, nunca compras bancárias ainda não classificadas.",
+      "Veja os detalhes em: https://facts-app-nu.vercel.app/?bank=1",
+    ].join("\n");
+    try {
+      const sent = await sendMail({
+        subject: "Facts — alerta de aumento em " + value.categoryLabel,
+        text,
+      });
+      if (!sent.sent) return Response.json({ error: "email_unconfigured" }, { status: 503 });
+      return Response.json({ ok: true });
+    } catch {
+      return Response.json({ error: "email_failed" }, { status: 502 });
+    }
+  }
   const direction = value.direction === "outgoing" ? "enviada" : "recebida";
   const counterparty = value.counterparty ?? "Contraparte não identificada";
   const classification = value.classification
