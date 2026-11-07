@@ -1,8 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#e7dcc8"/>
-  <g transform="translate(5.76 5.76) scale(0.82)">
-    <path d="M50.3 19.8A22 22 0 1 0 53.5 36.9" fill="none" stroke="#1a1612" stroke-width="6.5" stroke-linecap="round"/>
-    <path d="M44.7 22.4L51.6 21.3L52.8 9.4" fill="none" stroke="#1a1612" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <g transform="translate(32 32)" fill="none" stroke="#1a1612" stroke-linecap="round" stroke-linejoin="round"><path d="M4.6 -5.2C4.6 -9 -4.6 -9 -4.6 -4.3C-4.6 0 4.6 0 4.6 4.3C4.6 9 -4.6 9 -4.6 5.2" stroke-width="4"/><path d="M0 -11V11" stroke-width="3.2"/></g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#29231d"/><stop offset="1" stop-color="#101014"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="10" y1="6" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff1d3"/><stop offset=".56" stop-color="#ebbb79"/><stop offset="1" stop-color="#a96c36"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <path d="M12 34C12 19.2 23.8 9 37.8 9C44.2 9 49.5 10.6 53.1 15.2" stroke="url(#gold)" stroke-width="7" stroke-linecap="round"/>
+  <path d="M48 5.5L58.5 17.5L45 20Z" fill="url(#gold)"/>
+  <path d="M19 20H37.5C46.8 20 52 25.1 52 32.5C52 39 48.6 42.3 43.3 44.6L55 58H43.7L32.4 45H29V58H19V20Z" fill="url(#gold)"/>
+  <path d="M23 25H38.5C42 25 44 27.3 44 31V42H39.5L36.5 45L33.5 42L30.5 45L27.5 42L24 45V25Z" fill="#fff4df"/>
+  <g stroke="#37281d" stroke-width="2.4" stroke-linecap="round">
+    <path d="M28 30H38"/><path d="M28 35H38"/><path d="M28 40H34"/>
   </g>
 </svg>

@@ -54,8 +54,8 @@ test("Conexões mostra o banco e os cartões reais e permite conectar outro", as
     [{ width: 1440, height: 900 }, "dark"],
   ] as const) {
     await page.addInitScript((theme) => {
-      if (theme === "light") localStorage.setItem("ciclo-theme", "light");
-      else localStorage.removeItem("ciclo-theme");
+      if (theme === "light") localStorage.setItem("recontei-theme", "light");
+      else localStorage.removeItem("recontei-theme");
     }, scheme);
     await page.emulateMedia({ colorScheme: scheme });
     await page.setViewportSize(viewport);

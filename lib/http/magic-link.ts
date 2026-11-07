@@ -18,7 +18,7 @@ export async function handleMagicLink(
     return Response.json({ error: "Configuração incompleta: ALLOWED_EMAIL" }, { status: 503 });
   }
   if (decision === "denied") {
-    return Response.json({ error: "Este e-mail não pode entrar no Ciclo." }, { status: 403 });
+    return Response.json({ error: "Este e-mail não pode entrar no Recontei." }, { status: 403 });
   }
   try {
     await input.send(email.trim(), input.redirectTo);

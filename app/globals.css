@@ -6,61 +6,61 @@
 /* Dark is the default. Light is opt-in through the theme toggle (data-theme="light" on <html>). */
 :root {
   color-scheme: dark;
-  --background: #0b0b0c;
-  --foreground: #f4f2ee;
-  --card: #141416;
-  --card-foreground: #f4f2ee;
-  --popover: #18181b;
-  --popover-foreground: #f4f2ee;
-  --primary: #e7dcc8;
-  --primary-foreground: #1a1612;
-  --secondary: #1d1d20;
-  --secondary-foreground: #f4f2ee;
-  --muted: #1b1b1e;
-  --muted-foreground: #9a978f;
-  --accent: #222226;
-  --accent-foreground: #f4f2ee;
-  --brand: #e7dcc8;
-  --brand-foreground: #1a1612;
-  --hero: #1a1815;
-  --hero-foreground: #f7f3ea;
-  --hero-muted: #a8a196;
-  --hero-border: #2f2b25;
-  --destructive: #ff8a80;
-  --success: #8fd19e;
-  --border: #26262a;
-  --input: #2e2e33;
-  --ring: #e7dcc8;
+  --background: #0d0d0f;
+  --foreground: #f8f5ef;
+  --card: #19191b;
+  --card-foreground: #f8f5ef;
+  --popover: #242223;
+  --popover-foreground: #f8f5ef;
+  --primary: #e7c28b;
+  --primary-foreground: #17120d;
+  --secondary: #292728;
+  --secondary-foreground: #f8f5ef;
+  --muted: #272526;
+  --muted-foreground: #a9a39a;
+  --accent: #34302a;
+  --accent-foreground: #f8f5ef;
+  --brand: #e7c28b;
+  --brand-foreground: #17120d;
+  --hero: #19191b;
+  --hero-foreground: #fff9ed;
+  --hero-muted: #bdb4aa;
+  --hero-border: #5b4635;
+  --destructive: #f17878;
+  --success: #35cae8;
+  --border: #343033;
+  --input: #514945;
+  --ring: #e7c28b;
   --radius: 1rem;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --background: #f6f5f2;
-  --foreground: #141414;
+  --background: #f9f6f0;
+  --foreground: #211c18;
   --card: #ffffff;
-  --card-foreground: #141414;
+  --card-foreground: #211c18;
   --popover: #ffffff;
-  --popover-foreground: #141414;
-  --primary: #1a1612;
-  --primary-foreground: #f7f3ea;
-  --secondary: #efece6;
-  --secondary-foreground: #141414;
-  --muted: #efece6;
-  --muted-foreground: #66625b;
-  --accent: #efece6;
-  --accent-foreground: #141414;
-  --brand: #e7dcc8;
-  --brand-foreground: #1a1612;
-  --hero: #1a1714;
-  --hero-foreground: #f7f3ea;
-  --hero-muted: #b9b2a6;
-  --hero-border: #2f2b25;
-  --destructive: #b42318;
-  --success: #2f8a4c;
-  --border: #e4e0d8;
-  --input: #dcd7ce;
-  --ring: #1a1612;
+  --popover-foreground: #211c18;
+  --primary: #7c5631;
+  --primary-foreground: #ffffff;
+  --secondary: #eee7db;
+  --secondary-foreground: #211c18;
+  --muted: #f3ece3;
+  --muted-foreground: #766e62;
+  --accent: #eee3d4;
+  --accent-foreground: #211c18;
+  --brand: #7c5631;
+  --brand-foreground: #ffffff;
+  --hero: #28231f;
+  --hero-foreground: #fff9ed;
+  --hero-muted: #e2d3c0;
+  --hero-border: #5b4635;
+  --destructive: #ad302a;
+  --success: #146f91;
+  --border: #dfd5c7;
+  --input: #d7c7b6;
+  --ring: #a47847;
 }
 
 @theme inline {
@@ -108,6 +108,8 @@
   }
   body {
     min-height: 100dvh;
+    background-image: radial-gradient(ellipse 48rem 32rem at 80% -14%, rgb(193 128 60 / .08), transparent 75%);
+    background-attachment: fixed;
   }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-ring;
@@ -207,95 +209,64 @@
   }
 }
 
-/* Logo: the arrow renews around the coin, the coin settles at the end of each turn.
-   Calm (header, empty states): one turn, then rest, every 10 s.
-   Loading: the same turn, back to back, with a soft halo behind the tile. */
-@keyframes logo-turn {
-  0% {
-    transform: rotate(0deg);
-  }
-  20%,
-  100% {
-    transform: rotate(360deg);
-  }
+/* The orbit moves briefly in the header and continuously while loading. */
+.brand-tile {
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(145deg, #30261e, #171718 70%);
+  box-shadow: inset 0 0 0 1px rgb(255 232 192 / .18), 0 10px 25px -14px rgb(230 174 103 / .32);
 }
-@keyframes logo-coin {
-  0%,
-  18% {
-    transform: scale(1);
-  }
-  23% {
-    transform: scale(1.22);
-  }
-  29%,
-  100% {
-    transform: scale(1);
-  }
+.brand-tile::before {
+  position: absolute;
+  content: "";
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 24% 12%, rgb(252 216 158 / .12), transparent 64%);
+  pointer-events: none;
 }
-@keyframes logo-turn-fast {
-  0% {
-    transform: rotate(0deg);
-  }
-  70%,
-  100% {
-    transform: rotate(360deg);
-  }
+.brand-wordmark { font-feature-settings: "ss01" 1; }
+@keyframes logo-orbit {
+  0%, 4% { transform: rotate(0deg); }
+  25%, 100% { transform: rotate(360deg); }
 }
-@keyframes logo-coin-fast {
-  0%,
-  62% {
-    transform: scale(1);
-  }
-  76% {
-    transform: scale(1.2);
-  }
-  90%,
-  100% {
-    transform: scale(1);
-  }
+@keyframes logo-orbit-fast {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes logo-glint {
+  0%, 15%, 34%, 100% { opacity: 0.75; transform: scale(1); }
+  24% { opacity: 1; transform: scale(1.3); }
 }
 @keyframes loading-halo {
-  0%,
-  100% {
-    transform: scale(0.92);
-    opacity: 0.35;
-  }
-  50% {
-    transform: scale(1.12);
-    opacity: 0.08;
-  }
+  0%, 100% { transform: scale(0.9); opacity: 0.42; }
+  50% { transform: scale(1.14); opacity: 0.12; }
 }
-.logo-live .logo-ring,
-.logo-loading .logo-ring {
+.logo-flow {
   transform-box: view-box;
   transform-origin: 50% 50%;
 }
-.logo-live .logo-coin,
-.logo-loading .logo-coin {
-  /* The coin grows from the exact middle of the money sign, whatever the font. */
+.logo-pulse {
   transform-box: fill-box;
   transform-origin: center;
 }
-.logo-live .logo-ring {
-  animation: logo-turn 10s cubic-bezier(0.65, 0, 0.35, 1) var(--logo-delay, 0s) infinite;
+.logo-live .logo-flow {
+  animation: logo-orbit 11s cubic-bezier(0.58, 0, 0.35, 1) var(--logo-delay, 0s) infinite;
 }
-.logo-live .logo-coin {
-  animation: logo-coin 10s var(--spring, ease-out) var(--logo-delay, 0s) infinite;
+.logo-live .logo-pulse {
+  animation: logo-glint 11s ease-out var(--logo-delay, 0s) infinite;
 }
-.logo-loading .logo-ring {
-  animation: logo-turn-fast 1.9s cubic-bezier(0.65, 0, 0.35, 1) var(--logo-delay, 0s) infinite;
+.logo-loading .logo-flow {
+  animation: logo-orbit-fast 2.1s linear var(--logo-delay, 0s) infinite;
 }
-.logo-loading .logo-coin {
-  animation: logo-coin-fast 1.9s var(--spring, ease-out) var(--logo-delay, 0s) infinite;
+.logo-loading .logo-pulse {
+  animation: logo-glint 2.1s ease-out var(--logo-delay, 0s) infinite;
 }
 .loading-halo {
-  animation: loading-halo 1.9s ease-in-out infinite;
+  animation: loading-halo 2.1s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .logo-live .logo-ring,
-  .logo-live .logo-coin,
-  .logo-loading .logo-ring,
-  .logo-loading .logo-coin,
+  .logo-live .logo-flow, .logo-live .logo-pulse,
+  .logo-loading .logo-flow, .logo-loading .logo-pulse,
   .loading-halo {
     animation: none;
   }
@@ -326,4 +297,24 @@ input,
 select,
 textarea {
   font-size: max(16px, 1em);
+}
+
+/* Recontei: a softly breathing gold horizon, independent of data visualizations. */
+.recontei-wave { opacity: .9; mix-blend-mode: screen; }
+.recontei-wave svg {
+  animation: recontei-horizon 13s ease-in-out infinite alternate;
+  transform-origin: center;
+}
+@keyframes recontei-horizon {
+  0% { transform: translate3d(-2.5%, 2%, 0) scale(1.06, .95); opacity: .73; }
+  50% { transform: translate3d(1.5%, -7%, 0) scale(1.01, 1.05); opacity: 1; }
+  100% { transform: translate3d(-1.5%, 3%, 0) scale(1.07, .98); opacity: .8; }
+}
+.recontei-logo-loading { animation: recontei-breathe 2.8s ease-in-out infinite; }
+@keyframes recontei-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(.94); opacity: .72; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recontei-wave svg, .recontei-logo-loading { animation: none !important; }
 }

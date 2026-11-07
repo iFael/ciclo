@@ -8,14 +8,14 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "Ciclo",
+  title: "Recontei App",
   description: "Suas assinaturas, encontradas automaticamente no seu cartão.",
-  applicationName: "Ciclo",
+  applicationName: "Recontei App",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Ciclo",
+    title: "Recontei",
   },
   icons: {
     icon: [
@@ -36,7 +36,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#000000",
+  themeColor: "#0d0d0f",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

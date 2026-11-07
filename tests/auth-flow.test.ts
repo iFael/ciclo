@@ -33,7 +33,7 @@ describe("auth callback", () => {
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(`${ORIGIN}/`);
     const cookies = cookiesOf(response).join("\n");
-    expect(cookies).toMatch(/ciclo_last_seen=/);
+    expect(cookies).toMatch(/recontei_last_seen=/);
     expect(cookies.toLowerCase()).toContain("samesite=lax");
     expect(cookies).toContain("Secure");
     expect(cookies).toContain("Path=/");
@@ -137,7 +137,7 @@ describe("verify code", () => {
     });
     expect(ok.status).toBe(200);
     expect(calls).toEqual(["Owner@Example.com:123456"]);
-    expect(cookiesOf(ok).join("\n")).toContain("ciclo_last_seen=");
+    expect(cookiesOf(ok).join("\n")).toContain("recontei_last_seen=");
 
     const denied = await handleVerifyCode(new Request("http://localhost/api/auth/verify-code", { method: "POST", body: JSON.stringify({ email: "other@example.com", token: "123456" }) }), {
       allowedEmail: "owner@example.com",

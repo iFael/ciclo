@@ -31,16 +31,17 @@ export function sessionExpired(lastSeenMs: number, nowMs: number): boolean {
   return nowMs - lastSeenMs >= SESSION_WINDOW_MS;
 }
 
-export const LAST_SEEN_COOKIE = "ciclo_last_seen";
+export const LAST_SEEN_COOKIE = "recontei_last_seen";
+export const LEGACY_LAST_SEEN_COOKIE = "ciclo_last_seen";
 
 export function lastSeenCookie(value: string, secure: boolean): string {
   const secureFlag = secure ? "; Secure" : "";
   return `${LAST_SEEN_COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}${secureFlag}`;
 }
 
-export function clearLastSeenCookie(secure: boolean): string {
+export function clearLastSeenCookie(secure: boolean, name = LAST_SEEN_COOKIE): string {
   const secureFlag = secure ? "; Secure" : "";
-  return `${LAST_SEEN_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureFlag}`;
+  return `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureFlag}`;
 }
 
 export async function endAllSessions(client: {

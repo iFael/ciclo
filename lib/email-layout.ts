@@ -15,14 +15,14 @@ export type SummaryEmail = {
 // Same tokens as the login-code template in Supabase (Authentication → Email Templates).
 const FONT = "-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif";
 const C = {
-  page: "#f5f1ea",
+  page: "#f9f6f0",
   card: "#ffffff",
-  ink: "#111",
-  body: "#555",
-  note: "#8a7f6e",
-  faint: "#999",
-  block: "#0b0b0b",
-  line: "#eee8de",
+  ink: "#211c18",
+  body: "#675e54",
+  note: "#7e7467",
+  faint: "#968d82",
+  block: "#28211a",
+  line: "#eee5d9",
 };
 
 function esc(value: string): string {
@@ -44,7 +44,7 @@ function row(item: SummaryRow, first: boolean): string {
 
 /** The app icon (same PNG as the PWA) next to the name. Shared with the login-code template. */
 export function logoHeader(): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="padding-right:10px;"><img src="${APP_URL}/icons/logo-animado.gif" width="32" height="32" alt="" style="display:block;border:0;border-radius:8px;"></td><td style="font-family:${FONT};font-size:17px;font-weight:600;color:${C.ink};">Ciclo</td></tr></table>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="padding-right:10px;"><img src="${APP_URL}/icons/icon-192.png" width="32" height="32" alt="" style="display:block;border:0;border-radius:8px;"></td><td style="font-family:${FONT};font-size:17px;font-weight:600;color:${C.ink};">Recontei</td></tr></table>`;
 }
 
 /** Weekly/monthly summary in the same frame as the login-code e-mail. */
@@ -64,17 +64,17 @@ export function renderSummaryHtml(mail: SummaryEmail): string {
       <tr><td style="padding-top:8px;font-size:14px;color:${C.body};">${esc(mail.intro)}</td></tr>
       <tr><td align="center" style="padding-top:24px;">
         <div style="background:${C.block};border-radius:12px;padding:20px 12px;">
-          <div style="font-size:12px;color:#b9b2a6;">Gasto mensal</div>
+          <div style="font-size:12px;color:#dbc6ab;">Gasto mensal</div>
           <div style="padding-top:6px;font-size:36px;font-weight:700;color:#ffffff;">${esc(formatBrl(mail.monthlyTotal))}</div>
-          <div style="padding-top:4px;font-size:12px;color:#b9b2a6;">${esc(mail.annualLabel)}</div>
+          <div style="padding-top:4px;font-size:12px;color:#dbc6ab;">${esc(mail.annualLabel)}</div>
         </div>
       </td></tr>
       <tr><td align="center" style="padding-top:12px;font-size:12px;color:${C.note};">${esc(count)}</td></tr>
       <tr><td style="padding-top:16px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:${FONT};">${list}</table>
       </td></tr>
-      <tr><td align="center" style="padding-top:24px;"><a href="${APP_URL}" style="display:inline-block;background:${C.block};color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:12px;">Abrir o Ciclo</a></td></tr>
-      <tr><td style="padding-top:24px;font-size:12px;color:${C.faint};">Você recebe este resumo porque usa o Ciclo.</td></tr>
+      <tr><td align="center" style="padding-top:24px;"><a href="${APP_URL}" style="display:inline-block;background:${C.block};color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:12px;">Abrir o Recontei</a></td></tr>
+      <tr><td style="padding-top:24px;font-size:12px;color:${C.faint};">Você recebe este resumo porque usa o Recontei.</td></tr>
     </table>
   </td></tr>
 </table>

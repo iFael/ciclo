@@ -1,7 +1,7 @@
 export const LOGIN_COPY = {
   sent: "Enviamos um link de acesso.",
   checkEmail: "Confira seu e-mail",
-  denied: "Este e-mail não pode entrar no Ciclo.",
+  denied: "Este e-mail não pode entrar no Recontei.",
   rate: "Muitas tentativas. Espere um pouco e tente de novo.",
   failed: "Não foi possível enviar o link.",
   offline: "Sem conexão. Tente de novo.",

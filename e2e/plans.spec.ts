@@ -85,12 +85,13 @@ test("mostra o total, o plano e o link de gerenciar", async ({ page }) => {
   ];
   await mockPlans(page, model(cards));
   await page.goto("/");
-  await expect(page.getByTestId("page-title")).toHaveText("Meus planos");
+  await expect(page.getByTestId("page-title")).toHaveText("Recontei — suas assinaturas");
   await expect(page.getByTestId("page-subtitle")).toHaveText(
     "Suas assinaturas, encontradas automaticamente no seu cartão.",
   );
   await expect(page.getByTestId("monthly-total")).toHaveText("R$ 220,00/mês");
-  await expect(page.getByTestId("annual-total")).toHaveText("≈ R$ 2.640,00/ano");
+  await expect(page.getByTestId("annual-total")).toHaveText("≈ R$ 2.640,00");
+  await openTab(page, "assinaturas");
   await expect(page.getByTestId("plan-name").first()).toHaveText(
     "ChatGPT Plus",
   );
@@ -109,86 +110,41 @@ test("mostra o total, o plano e o link de gerenciar", async ({ page }) => {
 });
 
 async function openTab(page: Page, tab: "assinaturas" | "sugestoes") {
-  await page
-    .getByTestId(tab === "assinaturas" ? "tab-assinaturas" : "tab-sugestoes")
-    .click();
+  const desktop = await page.evaluate(() => window.innerWidth >= 1024);
+  const section = tab === "assinaturas" ? "assinaturas" : "economia";
+  await page.getByTestId((desktop ? "nav-" : "nav-mobile-") + section).click();
 }
 
-test("empilha no celular, abre em colunas no tablet e mostra lista e sugestões lado a lado no desktop", async ({
-  page,
-}) => {
-  const cards = [
-    card({}),
-    card({ id: "sub-2", service: "claude", planName: "Claude Pro" }),
-  ];
+test("adapta assinaturas, sugestões e painel a celular, tablet e desktop", async ({ page }) => {
+  const cards = [card({}), card({ id: "sub-2", service: "claude", planName: "Claude Pro" })];
   await mockPlans(page, {
     ...model(cards),
     suggestions: [
-      {
-        id: "s1",
-        planName: "Claude Pro",
-        label: "Pode ser recorrente",
-        checked: false,
-        priceLabel: "≈ R$ 113,85/mês",
-        apple: false,
-      },
-      {
-        id: "s2",
-        planName: "Assinatura via Apple",
-        label: "Pode ser recorrente",
-        checked: false,
-        priceLabel: "≈ R$ 1,90/mês",
-        apple: true,
-      },
+      { id: "s1", planName: "Claude Pro", label: "Pode ser recorrente", checked: false, priceLabel: "≈ R$ 113,85/mês", apple: false },
+      { id: "s2", planName: "Assinatura via Apple", label: "Pode ser recorrente", checked: false, priceLabel: "≈ R$ 1,90/mês", apple: true },
     ],
-    banners: [
-      {
-        id: "suggestions",
-        tone: "neutral",
-        text: "Encontramos 2 possíveis assinaturas",
-        actions: [],
-      },
-    ],
+    banners: [{ id: "suggestions", tone: "neutral", text: "Encontramos 2 possíveis assinaturas", actions: [] }],
   });
 
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/");
-  await expect(page.getByTestId("plan-card")).toHaveCount(2);
-  const mobileTab = await page.getByTestId("tab-assinaturas").boundingBox();
-  expect(mobileTab!.height).toBeGreaterThanOrEqual(44);
-  expect(
-    await page
-      .locator("header.top")
-      .evaluate((element) => getComputedStyle(element).position),
-  ).toBe("sticky");
-  const mobileScreen = await page.getByTestId("screen").boundingBox();
-  expect(mobileScreen!.width).toBeGreaterThan(370);
-  expect(mobileScreen!.width).toBeLessThanOrEqual(391);
-  const mobile = await page.getByTestId("plan-card").all();
-  const mobileFirst = await mobile[0].boundingBox();
-  const mobileSecond = await mobile[1].boundingBox();
-  expect(mobileSecond!.y).toBeGreaterThan(mobileFirst!.y + 40);
-  expect(Math.abs(mobileFirst!.x - mobileSecond!.x)).toBeLessThan(8);
-  await openTab(page, "sugestoes");
-  // The monthly card stays on top in both tabs; there is no separate "Para revisar" card.
   await expect(page.getByTestId("monthly-total")).toBeVisible();
-  await expect(page.getByText("possíveis planos")).toHaveCount(0);
-  const mobileSuggestions = await page.getByTestId("suggestion").all();
-  const mobileSugA = await mobileSuggestions[0].boundingBox();
-  const mobileSugB = await mobileSuggestions[1].boundingBox();
-  expect(mobileSugB!.y).toBeGreaterThan(mobileSugA!.y + 40);
-  expect(
-    await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth <=
-        document.documentElement.clientWidth + 1,
-    ),
-  ).toBe(true);
   await openTab(page, "assinaturas");
+  const mobile = await page.getByTestId("plan-card").all();
+  expect(mobile).toHaveLength(2);
+  const first = await mobile[0].boundingBox();
+  const second = await mobile[1].boundingBox();
+  expect(second!.y).toBeGreaterThan(first!.y + 40);
+  expect(Math.abs(first!.x - second!.x)).toBeLessThan(8);
+  await openTab(page, "sugestoes");
+  await expect(page.getByTestId("suggestion")).toHaveCount(1);
+  await expect(page.getByTestId("suggestion-position")).toHaveText("1 de 2");
+  await page.getByTestId("suggestion-next").click();
+  await expect(page.getByTestId("suggestion-position")).toHaveText("2 de 2");
+  await expect(page.getByTestId("suggestion-next")).toBeDisabled();
 
+  await openTab(page, "assinaturas");
   await page.setViewportSize({ width: 768, height: 900 });
-  const tabletScreen = await page.getByTestId("screen").boundingBox();
-  expect(tabletScreen!.width).toBeGreaterThan(740);
   const tablet = await page.getByTestId("plan-card").all();
   const tabletLeft = await tablet[0].boundingBox();
   const tabletRight = await tablet[1].boundingBox();
@@ -196,41 +152,17 @@ test("empilha no celular, abre em colunas no tablet e mostra lista e sugestões 
   expect(tabletRight!.x).toBeGreaterThan(tabletLeft!.x + 200);
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  const desktopScreen = await page.getByTestId("screen").boundingBox();
-  expect(desktopScreen!.width).toBeGreaterThan(1400);
-  expect(desktopScreen!.x).toBeLessThan(8);
-  expect(
-    await page
-      .locator("header.top")
-      .evaluate((element) => getComputedStyle(element).position),
-  ).toBe("relative");
-  // Desktop: no tabs, the summary row on top, the plan list on the left and suggestions in a column on the right.
-  await expect(page.getByRole("tablist")).toHaveCount(0);
-  await expect(page.getByTestId("footer-sync")).toBeVisible();
-  const total = await page.getByTestId("monthly-total").boundingBox();
+  await expect(page.getByTestId("recontei-nav")).toBeVisible();
+  await expect(page.getByTestId("recontei-bottom-nav")).toBeHidden();
   const desktop = await page.getByTestId("plan-card").all();
-  const first = await desktop[0].boundingBox();
-  const second = await desktop[1].boundingBox();
-  expect(first!.y).toBeGreaterThan(total!.y + total!.height);
-  expect(second!.y).toBeGreaterThan(first!.y + 40);
-  expect(Math.abs(first!.x - second!.x)).toBeLessThan(4);
-  const suggestions = await page.getByTestId("suggestion").all();
-  expect(suggestions).toHaveLength(2);
-  const sugTop = await suggestions[0].boundingBox();
-  const sugNext = await suggestions[1].boundingBox();
-  expect(sugTop!.x).toBeGreaterThan(first!.x + first!.width);
-  expect(sugNext!.y).toBeGreaterThan(sugTop!.y + 40);
-  await expect(page.getByTestId("suggestion-peek")).toHaveCount(0);
-  await page.getByTestId("remove").first().click();
-  await expect(page.getByTestId("remove-dialog")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("remove-dialog")).toHaveCount(0);
-  expect(
-    await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth <=
-        document.documentElement.clientWidth + 1,
-    ),
+  const row1 = await desktop[0].boundingBox();
+  const row2 = await desktop[1].boundingBox();
+  expect(row2!.y).toBeGreaterThan(row1!.y + 40);
+  await openTab(page, "sugestoes");
+  await expect(page.getByTestId("suggestion")).toHaveCount(1);
+  await expect(page.getByTestId("suggestion-position")).toHaveText("2 de 2");
+  await expect.poll(async () =>
+    page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)
   ).toBe(true);
 });
 
@@ -247,6 +179,7 @@ test("remover persiste depois de recarregar e desfazer traz o plano de volta", a
     await route.fulfill({ json: model(removed ? [] : [card({})]) });
   });
   await page.goto("/");
+  await openTab(page, "assinaturas");
   await page.getByTestId("remove").click();
   await expect(page.getByTestId("remove-dialog")).toContainText(
     "Isso não cancela sua assinatura na OpenAI. Para parar de pagar, use Gerenciar.",
@@ -332,103 +265,36 @@ async function routeSuggestionFlow(page: Page) {
   });
 }
 
-test("confirmar, remover e desfazer atualizam a lista sem recarregar", async ({
-  page,
-}) => {
+test("confirmar, remover e desfazer atualizam a lista sem recarregar", async ({ page }) => {
   await routeSuggestionFlow(page);
   await page.goto("/");
-  await expect(page.getByTestId("tab-sugestoes")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(page.getByTestId("tab-assinaturas")).toHaveText(
-    "Assinaturas (0)",
-  );
-  await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (2)");
-  await expect(
-    page.getByText("Encontramos 2 possíveis assinaturas"),
-  ).toBeVisible();
-  await expect(page.getByTestId("suggestion")).toHaveCount(2);
   await expect(page.getByTestId("monthly-total")).toBeVisible();
-
-  await page
-    .getByTestId("suggestion")
-    .filter({ hasText: "Claude Pro" })
-    .getByTestId("suggestion-yes")
-    .click();
-  await expect(page.getByTestId("added-toast")).toContainText(
-    "Adicionado às assinaturas",
-  );
-  await expect(page.getByTestId("tab-sugestoes")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(page.getByTestId("tab-assinaturas")).toHaveText(
-    "Assinaturas (1)",
-  );
-  await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (1)");
+  await openTab(page, "sugestoes");
+  await expect(page.getByTestId("suggestion")).toHaveCount(1);
+  await expect(page.getByTestId("suggestion-dot")).toHaveCount(2);
+  await page.getByTestId("suggestion").filter({ hasText: "Claude Pro" }).getByTestId("suggestion-yes").click();
+  await expect(page.getByTestId("added-toast")).toContainText("Adicionado às assinaturas");
+  await expect(page.getByTestId("suggestion").filter({ hasText: "Claude Pro" })).toHaveCount(0);
   await expect(page.getByTestId("plan-card")).toHaveCount(0);
-  await expect(
-    page.getByTestId("suggestion").filter({ hasText: "Claude Pro" }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByText("Encontramos 1 possível assinatura"),
-  ).toBeVisible();
 
   await page.getByTestId("added-toast-open").click();
   await expect(page).toHaveURL(/aba=assinaturas/);
-  await expect(page.getByTestId("added-toast")).toBeHidden();
   await expect(page.getByTestId("plan-card")).toHaveCount(1);
   await expect(page.getByTestId("plan-name")).toHaveText("Claude Pro");
+  await page.getByTestId("nav-mobile-gastos").click();
   await expect(page.getByTestId("monthly-total")).toHaveText("≈ R$ 113,85/mês");
-  await expect(page.getByTestId("suggestion")).toHaveCount(0);
+  await openTab(page, "assinaturas");
 
   await page.getByTestId("remove").click();
   await page.getByTestId("remove-confirm").click();
-  await expect(page.getByTestId("undo-toast")).toBeVisible();
-  await expect(page.getByTestId("undo-toast")).toContainText(
-    "Plano removido do Ciclo.",
-  );
+  await expect(page.getByTestId("undo-toast")).toContainText("Plano removido do Recontei.");
   await expect(page.getByTestId("plan-card")).toHaveCount(0);
-  await expect(page.getByTestId("tab-assinaturas")).toHaveText(
-    "Assinaturas (0)",
-  );
-  await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (2)");
-
-  await openTab(page, "sugestoes");
-  await expect(
-    page.getByText("Encontramos 2 possíveis assinaturas"),
-  ).toBeVisible();
-  await expect(
-    page.getByTestId("suggestion").filter({ hasText: "Claude Pro" }),
-  ).toBeVisible();
-  await expect(
-    page
-      .getByTestId("suggestion")
-      .filter({ hasText: "Claude Pro" })
-      .getByTestId("suggestion-yes"),
-  ).toBeVisible();
-  await expect(
-    page
-      .getByTestId("suggestion")
-      .filter({ hasText: "Claude Pro" })
-      .getByTestId("suggestion-no"),
-  ).toBeVisible();
-
   await page.getByRole("button", { name: "Desfazer" }).click();
   await expect(page.getByTestId("undo-toast")).toBeHidden();
-  await expect(
-    page.getByTestId("suggestion").filter({ hasText: "Claude Pro" }),
-  ).toHaveCount(0);
-  await expect(page.getByTestId("tab-assinaturas")).toHaveText(
-    "Assinaturas (1)",
-  );
+  await openTab(page, "sugestoes");
+  await expect(page.getByTestId("suggestion").filter({ hasText: "Claude Pro" })).toHaveCount(0);
   await openTab(page, "assinaturas");
   await expect(page.getByTestId("plan-card")).toHaveCount(1);
-  await expect(page.getByTestId("plan-name")).toHaveText("Claude Pro");
-  await expect(page.getByText("Encontramos 1 possível assinatura")).toHaveCount(
-    0,
-  );
 });
 
 test("o aviso de desfazer some sozinho depois de alguns segundos", async ({
@@ -436,6 +302,7 @@ test("o aviso de desfazer some sozinho depois de alguns segundos", async ({
 }) => {
   await routeSuggestionFlow(page);
   await page.goto("/");
+  await openTab(page, "sugestoes");
   await page
     .getByTestId("suggestion")
     .filter({ hasText: "Claude Pro" })
@@ -468,6 +335,7 @@ test("mostra a primeira leitura, a lista vazia e o erro de carga", async ({
   await page.unroute("**/api/plans");
   await mockPlans(page, model([], { empty: true }));
   await page.reload();
+  await openTab(page, "assinaturas");
   await expect(page.getByTestId("empty")).toHaveText(
     "Nenhuma assinatura encontrada",
   );
@@ -480,167 +348,62 @@ test("mostra a primeira leitura, a lista vazia e o erro de carga", async ({
   );
 });
 
-test("a aba padrão, as contagens e o total seguem o que está confirmado", async ({
-  page,
-}) => {
-  const cards = [card({})];
+test("navegação preserva avisos, sugestões e total confirmado", async ({ page }) => {
   await mockPlans(page, {
-    ...model(cards),
+    ...model([card({})]),
     suggestions: [suggestion("suno", "Suno Inc", "R$ 51,75/mês")],
     banners: [
-      {
-        id: "still:sub-1:2026-06-01",
-        tone: "neutral",
-        text: "Ainda cobrando: ChatGPT Plus em 01/06",
-        actions: [
-          {
-            id: "back",
-            label: "Voltar a acompanhar",
-            action: "restore-charging",
-            targetId: "sub-1",
-          },
-        ],
-      },
+      { id: "still:sub-1:2026-06-01", tone: "neutral", text: "Ainda cobrando: ChatGPT Plus em 01/06",
+        actions: [{ id: "back", label: "Voltar a acompanhar", action: "restore-charging", targetId: "sub-1" }] },
       { id: "conn:1", tone: "red", text: "Conexão vencida.", actions: [] },
-      {
-        id: "suggestions",
-        tone: "neutral",
-        text: "Encontramos 1 possível assinatura",
-        actions: [],
-      },
+      { id: "suggestions", tone: "neutral", text: "Encontramos 1 possível assinatura", actions: [] },
     ],
   });
   await page.goto("/");
-  await expect(
-    page.getByRole("tablist", { name: "Meus planos" }),
-  ).toBeVisible();
-  await expect(page.getByTestId("tab-assinaturas")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(page.getByTestId("tab-assinaturas")).toHaveText(
-    "Assinaturas (1)",
-  );
-  await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (1)");
+  await expect(page.getByTestId("recontei-bottom-nav").getByRole("button")).toHaveCount(4);
   await expect(page.getByTestId("monthly-total")).toBeVisible();
-  await expect(
-    page.getByText("Ainda cobrando: ChatGPT Plus em 01/06"),
-  ).toBeVisible();
-  await expect(page.getByTestId("connection-banner")).toContainText(
-    "Conexão vencida.",
-  );
-  await expect(page.getByTestId("suggestion")).toHaveCount(0);
-
+  await expect(page.getByTestId("connection-banner")).toContainText("Conexão vencida.");
+  await openTab(page, "assinaturas");
+  await expect(page.getByText("Ainda cobrando: ChatGPT Plus em 01/06")).toBeVisible();
+  await expect(page.getByTestId("plan-card")).toHaveCount(1);
   await openTab(page, "sugestoes");
-  await expect(page.getByTestId("monthly-total")).toBeVisible();
-  await expect(
-    page.getByText("Ainda cobrando: ChatGPT Plus em 01/06"),
-  ).toHaveCount(0);
-  await expect(page.getByTestId("connection-banner")).toContainText(
-    "Conexão vencida.",
-  );
   await expect(page.getByTestId("suggestion")).toHaveCount(1);
   await expect(page.getByTestId("plan-card")).toHaveCount(0);
 
   await page.unroute("**/api/plans");
   await mockPlans(page, {
-    ...model([]),
-    suggestions: [
-      suggestion("suno", "Suno Inc", "R$ 51,75/mês"),
-      suggestion("pix", "Pix recebido", "R$ 250/mês"),
-    ],
-    banners: [
-      {
-        id: "suggestions",
-        tone: "neutral",
-        text: "Encontramos 2 possíveis assinaturas",
-        actions: [],
-      },
-    ],
+    ...model([]), suggestions: [suggestion("suno", "Suno Inc", "R$ 51,75/mês"),
+      suggestion("pix", "Pix recebido", "R$ 250/mês")],
+    banners: [{ id: "suggestions", tone: "neutral", text: "Encontramos 2 possíveis assinaturas", actions: [] }],
   });
   await page.goto("/");
-  await expect(page.getByTestId("tab-sugestoes")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(page.getByTestId("tab-assinaturas")).toHaveText(
-    "Assinaturas (0)",
-  );
-  await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (2)");
   await expect(page.getByTestId("monthly-total")).toBeVisible();
-  await expect(page.getByTestId("empty-assinaturas")).toHaveCount(0);
+  await openTab(page, "sugestoes");
+  await expect(page.getByTestId("suggestion-dot")).toHaveCount(2);
 });
 
-test("a aba fica na URL, sobrevive ao reload e volta com o histórico", async ({
-  page,
-}) => {
-  const cards = [
-    card({}),
-    card({ id: "sub-2", service: "claude", planName: "Claude Pro" }),
-  ];
+test("os links legados de abas persistem no reload e no histórico", async ({ page }) => {
   await mockPlans(page, {
-    ...model(cards),
+    ...model([card({}), card({ id: "sub-2", service: "claude", planName: "Claude Pro" })]),
     suggestions: [suggestion("suno", "Suno Inc", "R$ 51,75/mês")],
-    banners: [
-      {
-        id: "suggestions",
-        tone: "neutral",
-        text: "Encontramos 1 possível assinatura",
-        actions: [],
-      },
-    ],
+    banners: [{ id: "suggestions", tone: "neutral", text: "Encontramos 1 possível assinatura", actions: [] }],
   });
-
   await page.goto("/?aba=sugestoes");
-  await expect(page.getByTestId("tab-sugestoes")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(page.getByTestId("nav-mobile-economia")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("suggestion")).toHaveCount(1);
-  await expect(page.getByTestId("plan-card")).toHaveCount(0);
   await page.reload();
-  await expect(page.getByTestId("tab-sugestoes")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expect(page.getByTestId("suggestion")).toBeVisible();
+  await expect(page.getByTestId("nav-mobile-economia")).toHaveAttribute("aria-current", "page");
 
   await page.goto("/?aba=assinaturas");
-  await expect(page.getByTestId("tab-assinaturas")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
   await expect(page.getByTestId("plan-card")).toHaveCount(2);
   await openTab(page, "sugestoes");
   await expect(page).toHaveURL(/aba=sugestoes/);
   await page.goBack();
-  await expect(page).toHaveURL(/aba=assinaturas/);
-  await expect(page.getByTestId("tab-assinaturas")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(page.getByTestId("nav-mobile-assinaturas")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("plan-card")).toHaveCount(2);
   await page.goForward();
-  await expect(page).toHaveURL(/aba=sugestoes/);
-  await expect(page.getByTestId("tab-sugestoes")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-
-  await page.getByTestId("tab-sugestoes").focus();
-  await page.keyboard.press("ArrowLeft");
-  await expect(page).toHaveURL(/aba=assinaturas/);
-  await expect(page.getByTestId("tab-assinaturas")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-
-  await page.goto("/?aba=foo");
-  await expect(page).toHaveURL(/aba=assinaturas/);
-  await expect(page.getByTestId("tab-assinaturas")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(page.getByTestId("nav-mobile-economia")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("suggestion")).toHaveCount(1);
 });
 
 test("cada aba tem um estado vazio com caminho para a outra", async ({
@@ -730,6 +493,7 @@ test("o botão Gerenciar mostra onde a assinatura é cobrada e a sugestão da Ap
     });
   });
   await page.goto("/");
+  await openTab(page, "assinaturas");
   const links = page.getByTestId("manage");
   await expect(links).toHaveText(["Gerenciar no site", "Gerenciar na Apple", "Gerenciar no Google Play"]);
   await expect(links.nth(1)).toHaveAttribute("href", "https://apps.apple.com/account/subscriptions");
@@ -752,6 +516,7 @@ test("sem link mostra Adicionar link e abre o campo de edição", async ({ page 
     removeConfirm: "Isso não cancela sua assinatura no provedor.",
   })]));
   await page.goto("/");
+  await openTab(page, "assinaturas");
   await expect(page.getByTestId("manage")).toHaveCount(0);
   const addLink = page.getByTestId("add-manage-link");
   await expect(addLink).toBeVisible();
@@ -771,6 +536,7 @@ test("alinha preços e ações com e sem link no desktop, sem perder o layout mo
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto("/");
+  await openTab(page, "assinaturas");
 
   const rows = page.getByTestId("plan-card");
   await expect(rows).toHaveCount(4);

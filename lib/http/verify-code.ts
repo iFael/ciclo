@@ -34,7 +34,7 @@ export async function handleVerifyCode(
 
   const decision = canSendMagicLink(email, input.allowedEmail);
   if (decision === "missing-config") return json({ error: "Configuração incompleta: ALLOWED_EMAIL" }, 503);
-  if (decision === "denied") return json({ error: "Este e-mail não pode entrar no Ciclo." }, 403);
+  if (decision === "denied") return json({ error: "Este e-mail não pode entrar no Recontei." }, 403);
 
   const result = await input.verifyCode({ email, token });
   if (result.status === 429) return json({ error: "Muitas tentativas. Espere um pouco e tente de novo." }, 429);
@@ -44,7 +44,7 @@ export async function handleVerifyCode(
   const allowed = input.allowedEmail?.trim().toLowerCase();
   if (!allowed || result.email.toLowerCase() !== allowed) {
     await input.signOut();
-    const response = json({ error: "Este e-mail não pode entrar no Ciclo." }, 403);
+    const response = json({ error: "Este e-mail não pode entrar no Recontei." }, 403);
     applyAuthCookies(response, input.sessionCookies(), input.secure);
     forgetSession(response, input.secure);
     return response;

@@ -2,15 +2,15 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Ciclo",
-    short_name: "Ciclo",
+    name: "Recontei App",
+    short_name: "Recontei",
     description: "Suas assinaturas, encontradas automaticamente no seu cartão.",
     id: "/",
     start_url: "/",
     scope: "/",
     display: "standalone",
-    background_color: "#000000",
-    theme_color: "#000000",
+    background_color: "#0d0d0f",
+    theme_color: "#0d0d0f",
     lang: "pt-BR",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

@@ -64,7 +64,7 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
           ) : (
             <span data-testid="login-status">{LOGIN_COPY.sent}</span>
           )}{" "}
-          O link abre no navegador. Se o Ciclo está na Tela de Início, digite o código do e-mail.
+          O link abre no navegador. Se o Recontei está na Tela de Início, digite o código do e-mail.
         </p>
         <label className="grid gap-2 text-sm font-medium" htmlFor="login-code">
           Código
@@ -115,7 +115,7 @@ export function LoginForm({ initialError = "" }: { initialError?: string }) {
 
   return (
     <>
-      <h1 className="text-2xl font-bold tracking-[-0.03em]">Entrar no Ciclo</h1>
+      <h1 className="text-2xl font-bold tracking-[-0.03em]">Entrar no Recontei</h1>
       <p className="mb-6 mt-2 text-[15px] text-muted-foreground">Suas assinaturas, encontradas automaticamente no seu cartão.</p>
       <form
       className="grid gap-4"

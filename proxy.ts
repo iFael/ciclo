@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { e2eBypass, publicSupabase } from "@/lib/env";
-import { endAllSessions, LAST_SEEN_COOKIE, sessionExpired } from "@/lib/security";
+import { endAllSessions, LAST_SEEN_COOKIE, LEGACY_LAST_SEEN_COOKIE, sessionExpired } from "@/lib/security";
 
 const PUBLIC_PREFIXES = ["/login", "/auth", "/api/webhooks/pluggy", "/api/cron/sync", "/api/health"];
 
@@ -64,15 +64,17 @@ export async function proxy(request: NextRequest) {
   const secure = process.env.NODE_ENV === "production";
 
   if (signedIn) {
-    const lastRaw = request.cookies.get(LAST_SEEN_COOKIE)?.value;
+    const lastRaw = request.cookies.get(LAST_SEEN_COOKIE)?.value ?? request.cookies.get(LEGACY_LAST_SEEN_COOKIE)?.value;
     const now = Date.now();
     if (lastRaw && sessionExpired(Number(lastRaw), now)) {
       await endAllSessions(supabase);
       const redirect = NextResponse.redirect(new URL("/login", request.url));
       redirect.cookies.set(LAST_SEEN_COOKIE, "", { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 0 });
+      redirect.cookies.set(LEGACY_LAST_SEEN_COOKIE, "", { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 0 });
       redirect.headers.set("Cache-Control", "no-store");
       return redirect;
     }
+    if (request.cookies.has(LEGACY_LAST_SEEN_COOKIE)) response.cookies.set(LEGACY_LAST_SEEN_COOKIE, "", { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 0 });
     response.cookies.set(LAST_SEEN_COOKIE, String(now), {
       httpOnly: true,
       secure,

@@ -57,7 +57,7 @@ export async function handleConnections(request: Request): Promise<Response> {
       } catch (error) {
         const code = error instanceof SyncStepError ? error.step : "sync_failed";
         console.info(JSON.stringify(safeLog({ count: 0, status: "error", errorCode: `connected_${code}` })));
-        return Response.json({ error: "Conectado na Pluggy, mas o Ciclo ainda não conseguiu ler. Tente de novo em alguns minutos." }, { status: 502 });
+        return Response.json({ error: "Conectado na Pluggy, mas o Recontei ainda não conseguiu ler. Tente de novo em alguns minutos." }, { status: 502 });
       }
       const after = await deps.store.load();
       const screen = await prepareScreen(after, deps.now(), storeLogoCache(deps.store));

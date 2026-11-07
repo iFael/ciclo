@@ -40,6 +40,7 @@ test("vincula Ebanx ao ChatGPT Plus pelo card, sem criar outro plano no desktop"
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/?aba=assinaturas");
+  await page.getByTestId("nav-economia").click();
 
   const button = page.getByTestId("suggestion-link-existing");
   await expect(button).toBeVisible();
@@ -51,8 +52,10 @@ test("vincula Ebanx ao ChatGPT Plus pelo card, sem criar outro plano no desktop"
   await submit.click();
 
   await expect(page.getByTestId("suggestion")).toHaveCount(0);
+  await page.getByTestId("nav-assinaturas").click();
   await expect(page.getByTestId("plan-card")).toHaveCount(1);
   await expect(page.getByTestId("plan-card")).toContainText("19/10");
+  await page.getByTestId("nav-gastos").click();
   await expect(page.getByTestId("monthly-total")).toHaveText("R$ 103,40/mês");
   expect(posts).toBe(1);
 });

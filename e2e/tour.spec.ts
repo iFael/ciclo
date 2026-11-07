@@ -56,19 +56,22 @@ test("um usuário novo vê o tour, com passos, contador e Voltar", async ({ page
   await page.goto("/");
   const tour = page.getByTestId("tour-card");
   await expect(tour).toHaveAttribute("data-step", "welcome");
-  await expect(page.getByTestId("tour-count")).toHaveText("1 de 5");
+  await expect(page.getByTestId("tour-count")).toHaveText("1 de 6");
   await page.getByTestId("tour-next").click();
   await expect(tour).toHaveAttribute("data-step", "suggestions");
   await expect(page.getByTestId("tour-spotlight")).toBeVisible();
   await page.getByTestId("tour-next").click();
-  await expect(tour).toHaveAttribute("data-step", "logo");
-  // The icon lives in the Assinaturas tab: the tour opens it on the phone.
-  await expect(page.getByTestId("tab-assinaturas")).toHaveAttribute("aria-selected", "true");
+  await expect(tour).toHaveAttribute("data-step", "plans");
+  // The plans step opens the Assinaturas tab on the phone.
+  await expect(page.getByTestId("nav-mobile-assinaturas")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("tour-spotlight")).toBeVisible();
   await page.getByTestId("tour-back").click();
   await expect(tour).toHaveAttribute("data-step", "suggestions");
   await page.getByTestId("tour-next").click();
   await page.getByTestId("tour-next").click();
   await expect(tour).toHaveAttribute("data-step", "manage");
+  await page.getByTestId("tour-next").click();
+  await expect(tour).toHaveAttribute("data-step", "search");
   await page.getByTestId("tour-next").click();
   await expect(tour).toHaveAttribute("data-step", "menu");
   await expect(page.getByTestId("tour-next")).toHaveText("Começar");
@@ -88,6 +91,7 @@ test("Pular fecha o tour e salva na conta", async ({ page }) => {
 test("quem já viu não vê de novo, mas pode abrir pelo menu", async ({ page }) => {
   await setup(page, { seen: true });
   await page.goto("/");
+  await page.getByTestId("nav-mobile-assinaturas").click();
   await expect(page.getByTestId("plan-card").first()).toBeVisible();
   await expect(page.getByTestId("tour")).toHaveCount(0);
   await page.getByTestId("menu").click();
@@ -100,28 +104,35 @@ test("quem já viu não vê de novo, mas pode abrir pelo menu", async ({ page })
 test("com a lista vazia, mostra um cartão de exemplo", async ({ page }) => {
   await setup(page, { seen: false, withCards: false });
   await page.goto("/");
-  await expect(page.getByTestId("tour-count")).toHaveText("1 de 4");
+  await expect(page.getByTestId("tour-count")).toHaveText("1 de 5");
   await page.getByTestId("tour-next").click();
   await page.getByTestId("tour-next").click();
   await expect(page.getByTestId("tour-card")).toHaveAttribute("data-step", "sample");
   await expect(page.getByTestId("tour-sample")).toBeVisible();
 });
 
-test("no desktop, destaca o ícone do plano", async ({ page }) => {
+test("no desktop, destaca a logo sem torná-la clicável", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 860 });
   await setup(page, { seen: false });
   await page.goto("/");
   await page.getByTestId("tour-next").click();
   await page.getByTestId("tour-next").click();
-  await expect(page.getByTestId("tour-card")).toHaveAttribute("data-step", "logo");
+  await expect(page.getByTestId("tour-card")).toHaveAttribute("data-step", "plans");
   const hole = await page.getByTestId("tour-spotlight").boundingBox();
-  const icon = await page.getByTestId("change-logo").first().boundingBox();
+  const icon = await page.getByTestId("plan-logo").first().boundingBox();
   expect(hole && icon).toBeTruthy();
   await expect
     .poll(async () => {
       const h = await page.getByTestId("tour-spotlight").boundingBox();
-      const i = await page.getByTestId("change-logo").first().boundingBox();
-      return h && i ? Math.round(h.x + 8 - i.x) : null;
+      const i = await page.getByTestId("plan-logo").first().boundingBox();
+      return h && i ? Math.abs(Math.round(h.x + 8 - i.x)) <= 2 : null;
     })
-    .toBe(0);
+    .toBe(true);
+  await expect
+    .poll(async () => {
+      const h = await page.getByTestId("tour-spotlight").boundingBox();
+      const i = await page.getByTestId("plan-logo").first().boundingBox();
+      return h && i ? Math.abs(Math.round(h.y + 8 - i.y)) <= 2 : null;
+    })
+    .toBe(true);
 });

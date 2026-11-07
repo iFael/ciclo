@@ -1,4 +1,5 @@
 import { isShadowed } from "@/lib/actions";
+import { spendingHistory } from "@/lib/insights";
 import { cadenceOf, chargeDates, isStaleCharge, lastChargeLabel } from "@/lib/charges";
 import { appleChoices, serviceInfo } from "@/lib/catalog";
 import { STORES, billingChannel, guessAppleService, trustedCatalogLink } from "@/lib/channel";
@@ -148,6 +149,8 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
         planName: subscription.planName,
         company,
         priceLabel: priceLabel(subscription.amount, subscription.approximate),
+        monthlyAmount: subscription.amount,
+        upcomingChargeDate: subscription.expectedChargeDate && subscription.expectedChargeDate >= today ? subscription.expectedChargeDate : null,
         nextChargeLabel: lastChargeLabel(last, today, cadence),
         channel,
         manageUrl,
@@ -291,11 +294,14 @@ export function buildScreen(state: AppState, now = new Date(), logos?: Map<strin
 
   const monthlyTotal = activeMonthlyTotal(state, today);
   const annualApprox = round2(monthlyTotal * 12);
+  const spending = spendingHistory(state, today);
   return {
     monthlyLabel: `${formatBrl(monthlyTotal)}/mês`,
     annualLabel: `≈ ${formatBrl(annualApprox)}/ano`,
     monthlyTotal,
     annualApprox,
+    spendingHistory: spending.months,
+    spendingTrend: spending.trend,
     cards,
     inactiveCards,
     suggestions,

@@ -37,7 +37,7 @@ describe("send summary by e-mail", () => {
     const response = await handleSummaryEmail();
     expect(response.status).toBe(200);
     expect(runtime.sent).toHaveLength(1);
-    expect(runtime.sent[0].subject).toBe("Ciclo — resumo semanal");
+    expect(runtime.sent[0].subject).toBe("Recontei — resumo semanal");
     expect(runtime.sent[0].html).toContain("Seu resumo semanal");
     expect(await runtime.store.sentReminderKeys()).toEqual([]);
   });
