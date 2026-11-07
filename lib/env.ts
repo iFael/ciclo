@@ -6,7 +6,7 @@ export function publicSupabase(): { url: string; key: string } | null {
 }
 
 export function e2eBypass(): boolean {
-  return process.env.CICLO_E2E === "1" && process.env.NODE_ENV !== "production";
+  return process.env.RECONTEI_E2E === "1" && process.env.NODE_ENV !== "production";
 }
 
 export function magicLinkRedirect(origin: string): string {

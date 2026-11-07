@@ -7,12 +7,12 @@ test.beforeEach(async ({ page }) => {
 
 test("mostra erro quando o e-mail é recusado, o envio falha ou a resposta não é JSON", async ({ page }) => {
   await page.route("**/api/auth/magic-link", async (route) => {
-    await route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "Este e-mail não pode entrar no Ciclo." }) });
+    await route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "Este e-mail não pode entrar no Recontei." }) });
   });
   await page.goto("/login");
   await page.getByTestId("login-email").fill("other@example.com");
   await page.getByTestId("login-submit").click();
-  await expect(page.getByTestId("login-status")).toHaveText("Este e-mail não pode entrar no Ciclo.");
+  await expect(page.getByTestId("login-status")).toHaveText("Este e-mail não pode entrar no Recontei.");
 
   await page.unroute("**/api/auth/magic-link");
   await page.route("**/api/auth/magic-link", async (route) => {
@@ -137,5 +137,5 @@ test("no desktop o login é um cartão e o código do e-mail aceita de 6 a 10 d�
 
 test("mostra o erro de um link recusado", async ({ page }) => {
   await page.goto("/login?erro=negado");
-  await expect(page.getByTestId("login-status")).toHaveText("Este e-mail não pode entrar no Ciclo.");
+  await expect(page.getByTestId("login-status")).toHaveText("Este e-mail não pode entrar no Recontei.");
 });

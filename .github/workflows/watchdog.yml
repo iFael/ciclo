@@ -14,15 +14,15 @@ jobs:
     steps:
       - name: Fail when the last sync is older than 48 hours
         env:
-          CICLO_URL: ${{ secrets.CICLO_URL }}
+          RECONTEI_URL: ${{ secrets.RECONTEI_URL || secrets.CICLO_URL }}
           HEALTH_TOKEN: ${{ secrets.HEALTH_TOKEN }}
         run: |
           python3 - << 'PY'
           import json, os, urllib.request
-          base = os.environ.get("CICLO_URL", "").rstrip("/")
+          base = os.environ.get("RECONTEI_URL", "").rstrip("/")
           token = os.environ.get("HEALTH_TOKEN", "")
           if not base or not token:
-              raise SystemExit("CICLO_URL and HEALTH_TOKEN are required")
+              raise SystemExit("RECONTEI_URL and HEALTH_TOKEN are required")
           request = urllib.request.Request(base + "/api/health", headers={"Authorization": f"Bearer {token}"})
           with urllib.request.urlopen(request, timeout=30) as response:
               body = json.load(response)

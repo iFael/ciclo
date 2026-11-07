@@ -17,18 +17,18 @@ const RENEW = "Renove no Dashboard da Pluggy: https://dashboard.pluggy.ai";
 type Model = ReturnType<typeof buildScreen>;
 
 function summaryFrom(model: Model): { subject: string; text: string; html: string } {
-  const lines = ["Resumo semanal do Ciclo", ""];
+  const lines = ["Resumo semanal do Recontei", ""];
   if (model.cards.length === 0) lines.push("Nenhuma assinatura confirmada.");
   for (const card of model.cards) lines.push(`${card.planName} — ${card.priceLabel} — ${card.nextChargeLabel}`);
   lines.push("", `Total: ${formatBrl(model.monthlyTotal)}/mês (${model.annualLabel})`);
   const html = renderSummaryHtml({
     title: "Seu resumo semanal",
-    intro: "Aqui estão as assinaturas que o Ciclo acompanha e quanto elas somam por mês.",
+    intro: "Aqui estão as assinaturas que o Recontei acompanha e quanto elas somam por mês.",
     rows: model.cards,
     monthlyTotal: model.monthlyTotal,
     annualLabel: model.annualLabel,
   });
-  return { subject: "Ciclo — resumo semanal", text: lines.join("\n"), html };
+  return { subject: "Recontei — resumo semanal", text: lines.join("\n"), html };
 }
 
 /** The weekly summary as it is now, for the "Enviar resumo por e-mail" menu item. */
@@ -46,18 +46,18 @@ export function planReminders(state: AppState, sent: Set<string>, now = new Date
 
   const month = `monthly:${monthKey(today)}`;
   if (!sent.has(month)) {
-    const lines = ["Resumo mensal do Ciclo", ""];
+    const lines = ["Resumo mensal do Recontei", ""];
     if (model.cards.length === 0) lines.push("Nenhuma assinatura confirmada.");
     for (const card of model.cards) lines.push(`${card.planName} — ${card.priceLabel} — ${card.nextChargeLabel}`);
     lines.push("", `Total: ${formatBrl(model.monthlyTotal)}/mês (${model.annualLabel})`);
     const html = renderSummaryHtml({
       title: "Seu resumo do mês",
-      intro: "Aqui estão as assinaturas que o Ciclo acompanha e quanto elas somam por mês.",
+      intro: "Aqui estão as assinaturas que o Recontei acompanha e quanto elas somam por mês.",
       rows: model.cards,
       monthlyTotal: model.monthlyTotal,
       annualLabel: model.annualLabel,
     });
-    messages.push({ key: month, kind: "monthly", subject: "Ciclo — resumo mensal", text: lines.join("\n"), html });
+    messages.push({ key: month, kind: "monthly", subject: "Recontei — resumo mensal", text: lines.join("\n"), html });
   }
 
   for (const subscription of state.subscriptions) {
@@ -68,7 +68,7 @@ export function planReminders(state: AppState, sent: Set<string>, now = new Date
     messages.push({
       key,
       kind: "charge",
-      subject: "Ciclo — cobrança em 3 dias",
+      subject: "Recontei — cobrança em 3 dias",
       text: `Sua cobrança de ${subscription.planName} está prevista para ${formatDayMonth(subscription.expectedChargeDate)}.`,
     });
   }
@@ -82,7 +82,7 @@ export function planReminders(state: AppState, sent: Set<string>, now = new Date
           messages.push({
             key,
             kind: "renew30",
-            subject: "Ciclo — conexão vence em 30 dias",
+            subject: "Recontei — conexão vence em 30 dias",
             text: `A conexão com o banco vence em ${days} dias. ${RENEW}`,
           });
         }
@@ -93,7 +93,7 @@ export function planReminders(state: AppState, sent: Set<string>, now = new Date
           messages.push({
             key,
             kind: "renew7",
-            subject: "Ciclo — conexão vence em 7 dias",
+            subject: "Recontei — conexão vence em 7 dias",
             text: `A conexão com o banco vence em ${days} dias. ${RENEW}`,
           });
         }
@@ -105,7 +105,7 @@ export function planReminders(state: AppState, sent: Set<string>, now = new Date
         messages.push({
           key,
           kind: "login_error",
-          subject: "Ciclo — não foi possível atualizar",
+          subject: "Recontei — não foi possível atualizar",
           text: `Não conseguimos atualizar suas assinaturas (LOGIN_ERROR). ${RENEW}`,
         });
       }
@@ -124,7 +124,7 @@ export function planReminders(state: AppState, sent: Set<string>, now = new Date
           messages.push({
             key,
             kind: "expired",
-            subject: "Ciclo — conexão vencida",
+            subject: "Recontei — conexão vencida",
             text: `Conexão vencida e nenhum item novo. Seus planos continuam como estavam. ${RENEW}`,
           });
         }

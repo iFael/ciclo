@@ -5,11 +5,12 @@ import { cn } from "@/lib/utils";
 
 export type Theme = "dark" | "light";
 
-export const THEME_STORAGE_KEY = "ciclo-theme";
-const THEME_EVENT = "ciclo-theme-change";
+export const THEME_STORAGE_KEY = "recontei-theme";
+const LEGACY_THEME_STORAGE_KEY = "ciclo-theme";
+const THEME_EVENT = "recontei-theme-change";
 
 /** Runs before paint so a saved light choice never flashes dark first. Dark is the default. */
-export const THEME_INIT_SCRIPT = `try{if(localStorage.getItem("${THEME_STORAGE_KEY}")==="light")document.documentElement.dataset.theme="light"}catch(e){}`;
+export const THEME_INIT_SCRIPT = `try{const saved=localStorage.getItem("${THEME_STORAGE_KEY}")??localStorage.getItem("${LEGACY_THEME_STORAGE_KEY}");if(saved==="light")document.documentElement.dataset.theme="light";if(saved!==null){localStorage.setItem("${THEME_STORAGE_KEY}",saved);localStorage.removeItem("${LEGACY_THEME_STORAGE_KEY}")}}catch(e){}`;
 
 function readTheme(): Theme {
   return document.documentElement.dataset.theme === "light" ? "light" : "dark";
@@ -31,6 +32,7 @@ export function applyTheme(theme: Theme): void {
   try {
     if (theme === "light") localStorage.setItem(THEME_STORAGE_KEY, "light");
     else localStorage.removeItem(THEME_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
   } catch {
     // Private mode: the choice lasts for this visit only.
   }

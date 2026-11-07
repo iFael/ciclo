@@ -1,6 +1,6 @@
 import { resolveDeps } from "@/lib/deps";
 import { isAuthorized } from "@/lib/http/gate";
-import { clearLastSeenCookie, endAllSessions } from "@/lib/security";
+import { clearLastSeenCookie, endAllSessions, LEGACY_LAST_SEEN_COOKIE } from "@/lib/security";
 
 export async function handleLogout(): Promise<Response> {
   if (!(await isAuthorized())) return Response.json({ error: "unauthorized" }, { status: 401 });
@@ -13,6 +13,7 @@ export async function handleLogout(): Promise<Response> {
   }
   const response = Response.json({ ok: true });
   response.headers.append("Set-Cookie", clearLastSeenCookie(process.env.NODE_ENV === "production"));
+  response.headers.append("Set-Cookie", clearLastSeenCookie(process.env.NODE_ENV === "production", LEGACY_LAST_SEEN_COOKIE));
   response.headers.set("Cache-Control", "no-store");
   return response;
 }
@@ -24,6 +25,7 @@ export async function handleDelete(): Promise<Response> {
   if (deps.signOut) await deps.signOut();
   const response = Response.json({ ok: true });
   response.headers.append("Set-Cookie", clearLastSeenCookie(process.env.NODE_ENV === "production"));
+  response.headers.append("Set-Cookie", clearLastSeenCookie(process.env.NODE_ENV === "production", LEGACY_LAST_SEEN_COOKIE));
   response.headers.set("Cache-Control", "no-store");
   return response;
 }

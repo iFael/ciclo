@@ -129,6 +129,8 @@ export type ScreenCard = {
   company: string;
   priceLabel: string;
   nextChargeLabel: string;
+  monthlyAmount: number;
+  upcomingChargeDate: string | null;
   /** Who bills the plan: the App Store, Google Play or the service itself. */
   channel: "apple" | "google-play" | "direct";
   manageUrl: string | null;
@@ -166,6 +168,8 @@ export type ScreenModel = {
   annualLabel: string;
   monthlyTotal: number;
   annualApprox: number;
+  spendingHistory: { month: string; total: number }[];
+  spendingTrend: { percent: number; current: number; previous: number } | null;
   cards: ScreenCard[];
   /** Confirmed plans with no charge in the last cycle while the bank kept sending data. */
   inactiveCards: ScreenCard[];

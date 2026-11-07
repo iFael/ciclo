@@ -40,7 +40,7 @@ export function ConnectionsDialog<M>({ open, onOpenChange, connections, onScreen
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<ScreenConnection | null>(null);
-  // The bank is picked in MeuPluggy (another tab). When the person comes back, the Ciclo authorization opens by itself.
+  // The bank is picked in MeuPluggy (another tab). When the person comes back, the Recontei authorization opens by itself.
   const [waiting, setWaiting] = useState(false);
   const openedAt = useRef(0);
 
@@ -134,7 +134,7 @@ export function ConnectionsDialog<M>({ open, onOpenChange, connections, onScreen
       <Dialog open={open} onOpenChange={(value) => { if (!value) setWaiting(false); onOpenChange(value); }}>
         <DialogContent data-testid="connections-dialog">
           <DialogTitle>Conexões</DialogTitle>
-          <DialogDescription>Os bancos e cartões que o Ciclo lê. Ele só lê as compras, nunca mexe no dinheiro.</DialogDescription>
+          <DialogDescription>Os bancos e cartões que o Recontei lê. Ele só lê as compras, nunca mexe no dinheiro.</DialogDescription>
           <div className="grid max-h-[55vh] gap-2 overflow-y-auto">
             {connections.length === 0 && <p className="text-sm text-muted-foreground">Nenhum banco conectado ainda.</p>}
             {connections.map((connection) => (
@@ -203,7 +203,7 @@ export function ConnectionsDialog<M>({ open, onOpenChange, connections, onScreen
             <div data-testid="add-bank-waiting" className="grid gap-2 rounded-xl border bg-background/40 px-4 py-3 text-sm">
               <p className="font-semibold">Escolha o banco na aba do MeuPluggy</p>
               <p className="text-xs text-muted-foreground">
-                Em Nova conexão, escolha a instituição. Quando voltar para o Ciclo, a autorização abre sozinha.
+                Em Nova conexão, escolha a instituição. Quando voltar para o Recontei, a autorização abre sozinha.
               </p>
               <div className="flex gap-2">
                 <Button size="sm" data-testid="add-bank-continue" onClick={continueAdding}>
@@ -236,7 +236,7 @@ export function ConnectionsDialog<M>({ open, onOpenChange, connections, onScreen
         <DialogContent>
           <DialogTitle>Remover {removing?.title}?</DialogTitle>
           <DialogDescription>
-            O Ciclo para de ler esses cartões e a autorização na Pluggy é encerrada. As assinaturas que você já tem continuam aqui. Para voltar, é só conectar de novo.
+            O Recontei para de ler esses cartões e a autorização na Pluggy é encerrada. As assinaturas que você já tem continuam aqui. Para voltar, é só conectar de novo.
           </DialogDescription>
           {error && (
             <p role="alert" className="text-sm text-destructive">

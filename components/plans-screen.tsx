@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
-import { Check, CircleHelp, ExternalLink, Link2, LogOut, Mail, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { Check, ChevronLeft, ChevronRight, CircleHelp, ExternalLink, Link2, LogOut, Mail, Minus, MoreHorizontal, Plug, RefreshCw, Trash2 } from "lucide-react";
 import { Brand, CycleMark, LoadingScreen } from "@/components/brand";
+import { BillingSection, GoldenWave, ReconteiNavigation, SavingsIntro, SpendingInsights, SpendingOverview, type ReconteiSection } from "@/components/recontei-views";
 import { ConnectionsDialog } from "@/components/connections-dialog";
 import { StatementSearch } from "@/components/statement-search";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -17,7 +18,7 @@ import { haptic, RollingAmount, Tilt } from "@/components/vivid";
 import { SamplePlan, WelcomeTour, type TourStep } from "@/components/welcome-tour";
 import type { ScreenConnection } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { bannerPlacement, isPlansTab, resolvePlansTab, tabLabelParts, type PlansTab } from "@/lib/plans-tabs";
+import { bannerPlacement, isPlansTab, resolvePlansTab, type PlansTab } from "@/lib/plans-tabs";
 import { shouldStartAutoSync, suggestionSummary, syncErrorMessage, SYNC_COOLDOWN_MS } from "@/lib/sync-policy";
 
 type Action = { id: string; label: string; href?: string; action?: string; targetId?: string };
@@ -30,6 +31,8 @@ type Card = {
   planName: string;
   priceLabel: string;
   nextChargeLabel: string;
+  monthlyAmount?: number;
+  upcomingChargeDate?: string | null;
   channel?: "apple" | "google-play" | "direct";
   manageUrl: string | null;
   manageButton?: string;
@@ -57,7 +60,6 @@ type Suggestion = {
 };
 
 const UNDO_TOAST_MS = 5000;
-const TABS: PlansTab[] = ["assinaturas", "sugestoes"];
 
 type SyncMode = "manual" | "auto";
 type SyncTrigger = { reason: "load" | "foreground"; hiddenForMs?: number };
@@ -175,6 +177,8 @@ function startSync(
 type Model = {
   monthlyLabel: string;
   annualLabel: string;
+  spendingHistory?: { month: string; total: number }[];
+  spendingTrend?: { percent: number; current: number; previous: number } | null;
   cards: Card[];
   inactiveCards?: Card[];
   suggestions: Suggestion[];
@@ -189,10 +193,13 @@ type Model = {
 
 export function PlansScreen({ initialAba = null }: { initialAba?: string | null }) {
   const [model, setModel] = useState<Model | null>(null);
+  const [section, setSection] = useState<ReconteiSection>(initialAba === "sugestoes" ? "economia" : initialAba === "assinaturas" ? "assinaturas" : "gastos");
   const [error, setError] = useState(false);
   const [tabParam, setTabParam] = useState<string | null>(isPlansTab(initialAba) ? initialAba : null);
   const [planBannerIndex, setPlanBannerIndex] = useState(0);
   const [connectionBannerIndex, setConnectionBannerIndex] = useState(0);
+  const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const suggestionTouch = useRef<{ x: number; y: number } | null>(null);
   const [connections, setConnections] = useState(false);
   const [pending, setPending] = useState<Card | null>(null);
   const [toastId, setToastId] = useState<string | null>(null);
@@ -225,7 +232,6 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   const [touring, setTouring] = useState(false);
   const tourChecked = useRef(false);
   const desktop = useDesktop();
-  const tabRefs = useRef<Partial<Record<PlansTab, HTMLButtonElement | null>>>({});
   const syncedAtRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -269,8 +275,15 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   useEffect(() => {
     const onPop = () => {
       const value = new URLSearchParams(window.location.search).get("aba");
-      if (isPlansTab(value)) setTabParam(value);
+      if (isPlansTab(value)) {
+        setTabParam(value);
+        setSection(value === "assinaturas" ? "assinaturas" : "economia");
+      } else {
+        const view = new URLSearchParams(window.location.search).get("view");
+        setSection(view === "cobrancas" ? "cobrancas" : "gastos");
+      }
     };
+    onPop();
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
@@ -278,7 +291,8 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   useEffect(() => {
     if (!isPlansTab(tabParam)) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("aba") === tabParam) return;
+    const requested = params.get("aba");
+    if (requested === null || requested === tabParam) return;
     params.set("aba", tabParam);
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   }, [tabParam]);
@@ -356,9 +370,18 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   const connectionBanner = connectionBanners.length > 0 ? connectionBanners[connectionBannerIndex % connectionBanners.length] : undefined;
   const planBanner = planBanners.length > 0 ? planBanners[planBannerIndex % planBanners.length] : undefined;
   const ready = Boolean(model && !error && tab);
+  const suggestionCount = model?.suggestions.length ?? 0;
+  const visibleSuggestionIndex = Math.min(suggestionIndex, Math.max(0, suggestionCount - 1));
+
+  function moveSuggestion(delta: number) {
+    setSuggestionIndex((current) => Math.max(0, Math.min(suggestionCount - 1, Math.min(current, suggestionCount - 1) + delta)));
+    haptic(6);
+  }
 
   function writeTab(next: PlansTab, mode: "push" | "replace") {
+    setSection(next === "assinaturas" ? "assinaturas" : "economia");
     const params = new URLSearchParams(window.location.search);
+    params.delete("view");
     params.set("aba", next);
     const href = `${window.location.pathname}?${params.toString()}`;
     if (mode === "push") window.history.pushState(null, "", href);
@@ -366,26 +389,13 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
     setTabParam(next);
   }
 
-  function selectTab(next: PlansTab, focus = false) {
+  function selectTab(next: PlansTab) {
     setAddedToast(0);
-    if (next !== tab) {
+    const target = next === "assinaturas" ? "assinaturas" : "economia";
+    if (next !== tab || section !== target) {
       haptic(6);
       writeTab(next, "push");
     }
-    if (focus) tabRefs.current[next]?.focus();
-  }
-
-  function onTabsKey(event: KeyboardEvent<HTMLDivElement>) {
-    if (!tab) return;
-    const index = TABS.indexOf(tab);
-    let next: PlansTab | null = null;
-    if (event.key === "ArrowRight" || event.key === "ArrowDown") next = TABS[(index + 1) % TABS.length];
-    else if (event.key === "ArrowLeft" || event.key === "ArrowUp") next = TABS[(index - 1 + TABS.length) % TABS.length];
-    else if (event.key === "Home") next = TABS[0];
-    else if (event.key === "End") next = TABS[TABS.length - 1];
-    if (!next) return;
-    event.preventDefault();
-    selectTab(next, true);
   }
 
   async function linkSuggestion(suggestion: Suggestion) {
@@ -424,62 +434,106 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
 
   const tourSteps: TourStep[] = [];
   if (model) {
-    const openAssinaturas = () => {
-      if (!desktop && tab !== "assinaturas") writeTab("assinaturas", "replace");
-    };
+    const openAssinaturas = () => { setSection("assinaturas"); if (tab !== "assinaturas") writeTab("assinaturas", "replace"); };
+    const openSugestoes = () => { setSection("economia"); if (tab !== "sugestoes") writeTab("sugestoes", "replace"); };
     tourSteps.push({
       id: "welcome",
-      title: "Boas-vindas ao Ciclo",
-      body: "O Ciclo lê o seu cartão e encontra as assinaturas sozinho. Em poucos passos eu te mostro o essencial.",
+      title: "Bem-vindo ao Recontei",
+      body: "Aqui você acompanha as assinaturas encontradas nas cobranças do seu cartão. Veja o total, revise as sugestões e mantenha seus planos sob controle.",
     });
     tourSteps.push({
       id: "suggestions",
-      title: "Sugestões do cartão",
-      body: "Cobranças que parecem assinatura chegam aqui. Toque em “É assinatura” para somar ao total, ou em “Não é” para descartar.",
-      target: desktop ? '[data-testid="panel-sugestoes"] [data-testid="suggestion"], [data-testid="empty-sugestoes"]' : "#tab-sugestoes",
+      title: "Revise as sugestões",
+      body: "O Recontei identifica possíveis recorrências. Confirme em “É assinatura” ou descarte em “Não é”. Os sinais de confiança ajudam na decisão.",
+      target: model.suggestions.length > 0 ? '[data-testid="suggestion-carousel"]' : '[data-testid="empty-sugestoes"]',
+      prepare: openSugestoes,
     });
+    if (model.suggestions.length > 1) {
+      tourSteps.push({
+        id: "carousel",
+        title: "Uma sugestão por vez",
+        body: "Use as setas ou os pontos para navegar. No celular, você também pode deslizar o cartão para os lados.",
+        target: '[data-testid="suggestion-controls"]',
+        prepare: openSugestoes,
+      });
+    }
+    const linkableIndex = model.suggestions.findIndex((suggestion) =>
+      suggestion.chargeCount && [...model.cards, ...(model.inactiveCards ?? [])].length > 0,
+    );
+    if (linkableIndex >= 0) {
+      tourSteps.push({
+        id: "link",
+        title: "Vincule pagamentos",
+        body: "Se a cobrança já pertence a um plano, vincule os pagamentos à assinatura existente em vez de criar outra.",
+        target: '[data-testid="suggestion-link-existing"], [data-testid="suggestion-link-form"]',
+        prepare: () => {
+          openSugestoes();
+          setSuggestionIndex(linkableIndex);
+        },
+      });
+    }
     if (model.cards.length > 0) {
       tourSteps.push({
-        id: "logo",
-        title: "Toque no ícone",
-        body: "Abre o campo Link do Gerenciar. Cole ali a página onde você cancela ou muda o plano, e o logo passa a vir do mesmo site.",
-        target: '[data-testid="change-logo"]',
+        id: "plans",
+        title: "Suas assinaturas",
+        body: "Cada cartão mostra o serviço, o valor e a última cobrança. A logo apenas identifica o serviço: não é um botão.",
+        target: '[data-testid="plan-logo"]',
         prepare: openAssinaturas,
       });
-      if (model.cards.some((card) => card.manageUrl)) {
-        tourSteps.push({
-          id: "manage",
-          title: "Gerenciar",
-          body: "Leva direto para onde você paga: App Store, Google Play ou o site do serviço. É por ali que se cancela de verdade.",
-          target: '[data-testid="manage"]',
-          prepare: openAssinaturas,
-        });
-      }
+      tourSteps.push({
+        id: "manage",
+        title: model.cards.some((card) => card.manageUrl) ? "Gerencie no site" : "Adicione o link",
+        body: model.cards.some((card) => card.manageUrl)
+          ? "Use Gerenciar para abrir o site ou a loja do serviço e alterar ou cancelar o plano. Remover do Recontei não cancela a cobrança."
+          : "Use Adicionar link para informar a página do serviço onde você pode alterar ou cancelar o plano.",
+        target: model.cards.some((card) => card.manageUrl) ? '[data-testid="manage"]' : '[data-testid="add-manage-link"]',
+        prepare: openAssinaturas,
+      });
     } else {
       tourSteps.push({
         id: "sample",
-        title: "Cada assinatura vira um cartão",
-        body: "Toque no ícone para colar o Link do Gerenciar. O botão Gerenciar leva direto para a App Store, o Google Play ou o site do serviço.",
+        title: "Seus planos aparecem aqui",
+        body: "Quando você confirmar uma sugestão, a assinatura entra no total. Use Gerenciar no site ou Adicionar link para cuidar da cobrança.",
         visual: <SamplePlan />,
       });
     }
     tourSteps.push({
+      id: "search",
+      title: "Busque no extrato",
+      body: "Encontre cobranças antigas, confirme uma assinatura esquecida ou vincule pagamentos a um plano já existente.",
+      target: '[data-testid="search-open"]',
+    });
+    tourSteps.push({
       id: "menu",
       title: "Mais opções",
-      body: "Aqui você sincroniza o cartão, recebe o resumo por e-mail, vê as conexões e pode rever este tutorial quando quiser.",
+      body: "No menu ⋯ você pode sincronizar, conferir conexões bancárias, receber um resumo por e-mail e abrir este tutorial novamente.",
       target: '[data-testid="menu"]',
     });
   }
 
+  function navigateSection(next: ReconteiSection) {
+    if (next === section) return;
+    if (next === "assinaturas" || next === "economia") {
+      writeTab(next === "assinaturas" ? "assinaturas" : "sugestoes", "push");
+    } else {
+      const params = new URLSearchParams(window.location.search);
+      params.delete("aba");
+      params.set("view", next);
+      window.history.pushState(null, "", window.location.pathname + "?" + params.toString());
+      setSection(next);
+    }
+    haptic(6);
+  }
+
   const manualSync = () => startSync("manual", undefined, syncedAtRef, setModel, setSyncing, setSyncToast, setSyncError);
-  const showAssinaturas = Boolean(ready && model && (desktop || tab === "assinaturas"));
-  const showSugestoes = Boolean(ready && model && (desktop || tab === "sugestoes"));
+  const showAssinaturas = Boolean(ready && model && section === "assinaturas");
+  const showSugestoes = Boolean(ready && model && section === "economia");
 
   const removeDialogs = (
     <>
       <Dialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
         <DialogContent data-testid="remove-dialog">
-          <DialogTitle>Remover do Ciclo</DialogTitle>
+          <DialogTitle>Remover do Recontei</DialogTitle>
           <DialogDescription>{pending?.removeConfirm}</DialogDescription>
           <DialogFooter>
             <DialogClose asChild>
@@ -498,7 +552,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                 }
               }}
             >
-              Remover do Ciclo
+              Remover do Recontei
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -518,7 +572,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
       <Dialog open={erase} onOpenChange={setErase}>
         <DialogContent>
           <DialogTitle>Apagar meus dados</DialogTitle>
-          <DialogDescription>Isso apaga os dados do Ciclo. Não cancela suas assinaturas no banco nem nos serviços.</DialogDescription>
+          <DialogDescription>Isso apaga os dados do Recontei. Não cancela suas assinaturas no banco nem nos serviços.</DialogDescription>
           <DialogFooter>
             <DialogClose asChild>
               <Button variant="outline">Voltar</Button>
@@ -540,7 +594,8 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
   );
 
   return (
-    <main data-testid="screen" id="planos" className="min-h-dvh w-full bg-background text-foreground">
+    <main data-testid="screen" id="planos" className="relative min-h-dvh w-full overflow-x-hidden bg-background text-foreground">
+      <GoldenWave />
       <a
         className="sr-only z-[60] rounded-md bg-primary px-3 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:left-3 focus:top-[calc(12px+env(safe-area-inset-top))]"
         href="#conteudo"
@@ -548,9 +603,9 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
         Ir para os planos
       </a>
 
-      <header className="top sticky top-0 z-40 bg-background/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl lg:relative lg:bg-transparent lg:backdrop-blur-none">
-        <div className="mx-auto flex h-16 max-w-[1120px] items-center justify-between gap-3 px-4 sm:px-6 lg:h-auto lg:border-b lg:px-0 lg:pb-7 lg:pt-7">
-          <Brand />
+      <header className="top sticky top-0 z-40 border-b border-border/60 bg-background/90 pt-[env(safe-area-inset-top)] backdrop-blur-2xl lg:relative lg:border-b-0 lg:bg-transparent lg:backdrop-blur-none">
+        <div className="mx-auto flex h-16 max-w-[1120px] items-center justify-between gap-3 px-4 sm:px-6 lg:h-auto lg:border-b lg:border-brand/20 lg:px-0 lg:pb-7 lg:pt-8">
+          <Brand compact />
           <div className="flex min-w-0 items-center gap-2.5">
             {ready && model && (
               <span data-testid="footer-sync" aria-live="polite" className="sr-only">
@@ -608,9 +663,9 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
         </div>
       </header>
 
-      <div id="conteudo" className="mx-auto max-w-[1120px] px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-0 lg:pb-14">
+      <div id="conteudo" className="relative z-10 mx-auto max-w-[1120px] px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-4 lg:pb-14">
         <h1 data-testid="page-title" className="sr-only">
-          Meus planos
+          Recontei — suas assinaturas
         </h1>
         <p data-testid="page-subtitle" className="sr-only">
           Suas assinaturas, encontradas automaticamente no seu cartão.
@@ -623,41 +678,13 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
           </p>
         )}
 
-        {ready && model && desktop && (
-          <section aria-label="Resumo" className="mt-8 grid grid-cols-[1.35fr_1fr_1fr] gap-4">
-            <Tilt className="rise overflow-hidden rounded-[18px] border border-hero-border bg-hero px-6 py-[22px] text-hero-foreground">
-              <HeroGlow />
-              <Eyebrow className="text-hero-muted">Gasto mensal</Eyebrow>
-              <p data-testid="monthly-total" className="mt-3 text-[52px] font-bold leading-none tracking-[-0.04em]">
-                <PerMonth label={model.monthlyLabel} roll />
-              </p>
-              <p className="mt-2.5 text-sm text-hero-muted">
-                <span data-testid="annual-total">{model.annualLabel}</span> · {plural(model.cards.length, "assinatura ativa", "assinaturas ativas")}
-              </p>
-            </Tilt>
-            <StatCard index={1} label="Ativas" value={plural(model.cards.length, "assinatura", "assinaturas")} hint="Confirmadas no seu cartão" />
-            <StatCard index={2} label="Para revisar" value={plural(model.suggestions.length, "sugestão", "sugestões")} hint="Encontradas no seu cartão" />
-          </section>
-        )}
+        {ready && model && <>
+          <ReconteiNavigation section={section} onChange={navigateSection} />
+          {section === "gastos" && <div className="mt-8"><SpendingOverview model={model} onNavigate={navigateSection} /><SpendingInsights model={model} /></div>}
+          {section === "cobrancas" && <div className="mt-8"><BillingSection model={model} /></div>}
+          {section === "economia" && <div className="mt-7"><SavingsIntro model={model} /></div>}
+        </>}
 
-        {ready && model && !desktop && (
-          <section aria-label="Resumo" className="rise relative mt-4 overflow-hidden rounded-[20px] border border-hero-border bg-hero p-5 text-hero-foreground">
-            <HeroGlow />
-            <Eyebrow className="text-hero-muted">Gasto mensal</Eyebrow>
-            <p data-testid="monthly-total" className="mt-2.5 text-[40px] font-bold leading-none tracking-[-0.04em]">
-              <PerMonth label={model.monthlyLabel} roll />
-            </p>
-            <p data-testid="annual-total" className="mt-2 text-[13.5px] text-hero-muted">
-              {model.annualLabel}
-            </p>
-            <MiniStats
-              items={[
-                { label: "Ativas", value: plural(model.cards.length, "assinatura", "assinaturas") },
-                { label: "Para revisar", value: plural(model.suggestions.length, "sugestão", "sugestões") },
-              ]}
-            />
-          </section>
-        )}
         {ready && (connectionBanner || model?.firstRead) && (
           <div className="mt-5 space-y-3">
             {connectionBanner && (
@@ -678,52 +705,13 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
           </div>
         )}
 
-        {ready && model && tab && !desktop && (
-          <div
-            role="tablist"
-            aria-label="Meus planos"
-            data-testid="plan-tabs"
-            onKeyDown={onTabsKey}
-            className="mt-5 grid w-full grid-cols-2 rounded-xl border bg-card p-1 md:inline-grid md:w-auto"
-          >
-            {TABS.map((item) => {
-              const selected = tab === item;
-              const count = item === "assinaturas" ? model.cards.length : model.suggestions.length;
-              const parts = tabLabelParts(item, count);
-              return (
-                <button
-                  key={item}
-                  type="button"
-                  role="tab"
-                  id={`tab-${item}`}
-                  data-testid={`tab-${item}`}
-                  aria-selected={selected}
-                  aria-controls={`panel-${item}`}
-                  tabIndex={selected ? 0 : -1}
-                  ref={(node) => {
-                    tabRefs.current[item] = node;
-                  }}
-                  onClick={() => selectTab(item)}
-                  className={cn(
-                    "flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-[9px] px-5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground md:min-w-44",
-                    selected && "bg-secondary text-foreground shadow-[inset_0_0_0_1px_var(--border)]",
-                  )}
-                >
-                  <span>{parts.name}</span>
-                  <span className="font-medium tabular-nums text-muted-foreground"> {parts.count}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
         {ready && model && (
-          <div className={cn(desktop && "mt-9 grid grid-cols-[minmax(0,1fr)_380px] items-start gap-6")}>
+          <div className={cn("mt-6", section !== "assinaturas" && section !== "economia" && "hidden")}>
             {showAssinaturas && (
               <section
                 {...(desktop
                   ? { "aria-labelledby": "heading-assinaturas" }
-                  : { role: "tabpanel", id: "panel-assinaturas", "aria-labelledby": "tab-assinaturas" })}
+                   : { "aria-label": "Assinaturas" })}
                 data-testid="panel-assinaturas"
                 className={cn("min-w-0", !desktop && "mt-4 space-y-4")}
               >
@@ -776,25 +764,14 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                         )}
                       >
                         <div className={cn(desktop ? "contents" : "flex items-center gap-3")}>
-                          <button
-                            type="button"
-                            data-testid="change-logo"
-                            className="pressable shrink-0 cursor-pointer rounded-xl"
-                            title="Editar logo e link"
-                            aria-label={`Editar logo e link de ${card.planName}`}
-                            aria-expanded={editingLogo === card.id}
-                            onClick={() => {
-                              haptic(6);
-                              setEditingLogo((current) => (current === card.id ? null : card.id));
-                            }}
-                          >
+                          <span data-testid="plan-logo" className="shrink-0" role="img" aria-label={`Logo de ${card.planName}`}>
                             <ServiceMark
                               key={card.logoUrl ?? "none"}
                               src={card.logoUrl === undefined ? `/logos/${card.service}.svg` : card.logoUrl}
                               name={card.planName}
                               fallback={card.logoFallback === true}
                             />
-                          </button>
+                          </span>
                           <div className="min-w-0 flex-1">
                             <h2 data-testid="plan-name" className="truncate text-base font-semibold leading-snug">
                               {card.planName}
@@ -833,7 +810,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                           )}
                         </div>
                         {desktop && (
-                          <Button variant="ghost" size="icon-sm" className="col-start-5 row-start-1" data-testid="remove" title="Remover do Ciclo" onClick={() => setPending(card)}>
+                          <Button variant="ghost" size="icon-sm" className="col-start-5 row-start-1" data-testid="remove" title="Remover do Recontei" onClick={() => setPending(card)}>
                             <Trash2 aria-hidden="true" />
                             <span className="sr-only">Remover</span>
                           </Button>
@@ -973,7 +950,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
               <section
                 {...(desktop
                   ? { "aria-labelledby": "heading-sugestoes" }
-                  : { role: "tabpanel", id: "panel-sugestoes", "aria-labelledby": "tab-sugestoes" })}
+                   : { "aria-label": "Oportunidades de economia" })}
                 data-testid="panel-sugestoes"
                 className={cn("min-w-0", !desktop && "mt-4 space-y-4")}
               >
@@ -1005,13 +982,56 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                         {suggestionBanner.text}
                       </p>
                     )}
-                    <div className={cn("grid grid-cols-1 gap-3", !desktop && "md:grid-cols-2")}>
-                      {model.suggestions.map((suggestion, index) => (
+                    <div data-testid="suggestion-carousel" aria-roledescription="carrossel" className="min-w-0">
+                      <div className="mb-3 flex items-center justify-between gap-2" data-testid="suggestion-controls">
+                        <Button type="button" variant="outline" size="icon-sm" data-testid="suggestion-prev" aria-label="Sugestão anterior" disabled={visibleSuggestionIndex === 0} onClick={() => moveSuggestion(-1)}>
+                          <ChevronLeft aria-hidden="true" />
+                        </Button>
+                        <div className="flex min-w-0 flex-col items-center gap-1.5">
+                          <span data-testid="suggestion-position" role="status" className="text-xs tabular-nums text-muted-foreground">
+                            {visibleSuggestionIndex + 1} de {suggestionCount}
+                          </span>
+                          <div className="flex flex-wrap items-center justify-center gap-1.5" aria-label="Posição das sugestões">
+                            {model.suggestions.map((item, index) => (
+                              <button
+                                type="button"
+                                key={item.id}
+                                data-testid="suggestion-dot"
+                                aria-label={`Mostrar sugestão ${index + 1} de ${suggestionCount}`}
+                                aria-current={index === visibleSuggestionIndex ? "true" : undefined}
+                                className={cn("h-2 rounded-full transition-[width,background-color] focus-visible:outline-ring", index === visibleSuggestionIndex ? "w-5 bg-primary" : "w-2 bg-muted-foreground/40")}
+                                onClick={() => setSuggestionIndex(index)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <Button type="button" variant="outline" size="icon-sm" data-testid="suggestion-next" aria-label="Próxima sugestão" disabled={visibleSuggestionIndex === suggestionCount - 1} onClick={() => moveSuggestion(1)}>
+                          <ChevronRight aria-hidden="true" />
+                        </Button>
+                      </div>
+                      <div
+                        data-testid="suggestion-slide"
+                        className="min-w-0 touch-pan-y"
+                        onTouchStart={(event) => {
+                          const touch = event.touches[0];
+                          suggestionTouch.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+                        }}
+                        onTouchEnd={(event) => {
+                          const origin = suggestionTouch.current;
+                          suggestionTouch.current = null;
+                          const touch = event.changedTouches[0];
+                          if (!origin || !touch) return;
+                          const dx = touch.clientX - origin.x;
+                          const dy = touch.clientY - origin.y;
+                          if (Math.abs(dx) >= 55 && Math.abs(dx) > Math.abs(dy) * 1.2) moveSuggestion(dx < 0 ? 1 : -1);
+                        }}
+                        onTouchCancel={() => { suggestionTouch.current = null; }}
+                      >
+                      {model.suggestions.filter((_, index) => index === visibleSuggestionIndex).map((suggestion) => (
                         <Card
                           asArticle
                           key={suggestion.id}
                           data-testid="suggestion"
-                          style={{ "--i": index } as CSSProperties}
                           className="rise lift flex min-w-0 flex-col rounded-[18px] p-[18px] transition-[transform,box-shadow] duration-300"
                         >
                           <div className="flex items-center gap-3">
@@ -1126,6 +1146,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
                           ) : null}
                         </Card>
                       ))}
+                      </div>
                     </div>
                   </>
                 )}
@@ -1135,6 +1156,8 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
         )}
       </div>
 
+      {ready && <ReconteiNavigation section={section} onChange={navigateSection} mobile />}
+
       {removeDialogs}
 
       {touring && ready && tourSteps.length > 0 && <WelcomeTour steps={tourSteps} onClose={closeTour} />}
@@ -1142,7 +1165,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-col items-center gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         {toastId && (
           <Toast testId="undo-toast">
-            <span>Plano removido do Ciclo.</span>
+            <span>Plano removido do Recontei.</span>
             <Button
               size="sm"
               variant="secondary"
@@ -1162,7 +1185,7 @@ export function PlansScreen({ initialAba = null }: { initialAba?: string | null 
               <Check className="size-4 text-success" aria-hidden="true" />
               Adicionado às assinaturas
             </span>
-            <Button size="sm" variant="secondary" data-testid="added-toast-open" aria-label="Ver assinaturas" onClick={() => selectTab("assinaturas", true)}>
+            <Button size="sm" variant="secondary" data-testid="added-toast-open" aria-label="Ver assinaturas" onClick={() => selectTab("assinaturas")}>
               Ver
             </Button>
           </Toast>
@@ -1242,7 +1265,13 @@ function Eyebrow({ className, children }: { className?: string; children: ReactN
 }
 
 function HeroGlow() {
-  return <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-brand/10 blur-2xl" />;
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+      <span className="absolute -right-12 -top-16 size-60 rounded-full bg-[#f197bf]/15 blur-3xl" />
+      <span className="absolute -bottom-32 -left-28 size-64 rounded-full bg-[#9461e9]/20 blur-3xl" />
+      <CycleMark className="absolute -bottom-10 -right-8 size-44 -rotate-12 opacity-[0.09]" />
+    </div>
+  );
 }
 
 function StatCard({ label, value, hint, index = 0 }: { label: string; value: string; hint: string; index?: number }) {

@@ -53,49 +53,84 @@ function placeCard(hole: Rect | null, cardHeight: number): { top: number; left: 
 
 export function WelcomeTour({ steps, onClose }: { steps: TourStep[]; onClose: (finished: boolean) => void }) {
   const [index, setIndex] = useState(0);
-  const [hole, setHole] = useState<Rect | null>(null);
+  const [highlight, setHighlight] = useState<{ id: string; rect: Rect | null } | null>(null);
   const [cardHeight, setCardHeight] = useState(240);
-  const [, setViewport] = useState(0);
   const cardRef = useRef<HTMLDivElement>(null);
   const step = steps[Math.min(index, steps.length - 1)];
+  const stepId = step?.id;
   const last = index >= steps.length - 1;
 
-  // The screen rebuilds its steps on every render: the effects below follow the step id, not the object.
+  // Never reuse the previous step's rectangle while the next target is moving.
+  const positioned = !step?.target || highlight?.id === stepId;
+  const hole = highlight?.id === stepId ? highlight.rect : null;
   const stepRef = useRef(step);
   useLayoutEffect(() => {
     stepRef.current = step;
   });
-  const stepId = step?.id;
 
   const relocate = useCallback(() => {
-    setHole(measure(stepRef.current?.target));
-    setViewport((value) => value + 1);
+    const current = stepRef.current;
+    if (!current?.target) return;
+    setHighlight((previous) =>
+      previous?.id === current.id ? { id: current.id, rect: measure(current.target) } : previous,
+    );
   }, []);
 
-  // A step opens its tab first, then scrolls its element into view and lights it up.
+  // Prepare the tab, scroll, and wait for several motionless frames BEFORE showing the highlight.
   useEffect(() => {
     const current = stepRef.current;
     if (!current) return;
     current.prepare?.();
+    if (!current.target) return;
+    const target = current.target;
     let frame = 0;
-    const timer = window.setTimeout(() => {
-      const node = current.target ? document.querySelector(current.target) : null;
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      node?.scrollIntoView({ block: "center", behavior: reduce ? "auto" : "smooth" });
-      relocate();
-      // Smooth scrolling moves the element after the first measure.
-      const until = Date.now() + 700;
-      const follow = () => {
-        relocate();
-        if (Date.now() < until) frame = window.requestAnimationFrame(follow);
-      };
-      frame = window.requestAnimationFrame(follow);
-    }, 60);
+    let cancelled = false;
+    let scrolling = false;
+    let previous: Rect | null = null;
+    let stableFrames = 0;
+    const startedAt = performance.now();
+
+    const follow = () => {
+      if (cancelled) return;
+      const node = document.querySelector(target);
+      const rect = measure(target);
+      const elapsed = performance.now() - startedAt;
+      if (!node || !rect) {
+        if (elapsed >= 2500) setHighlight({ id: current.id, rect: null });
+        else frame = window.requestAnimationFrame(follow);
+        return;
+      }
+      if (!scrolling) {
+        scrolling = true;
+        node.scrollIntoView({
+          block: "center",
+          inline: "nearest",
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        });
+        frame = window.requestAnimationFrame(follow);
+        return;
+      }
+      if (
+        previous &&
+        Math.abs(previous.top - rect.top) < 0.75 &&
+        Math.abs(previous.left - rect.left) < 0.75 &&
+        Math.abs(previous.width - rect.width) < 0.75 &&
+        Math.abs(previous.height - rect.height) < 0.75
+      ) stableFrames++;
+      else stableFrames = 0;
+      previous = rect;
+      if ((stableFrames >= 5 && elapsed >= 160) || elapsed >= 2500) {
+        setHighlight({ id: current.id, rect });
+      } else {
+        frame = window.requestAnimationFrame(follow);
+      }
+    };
+    frame = window.requestAnimationFrame(follow);
     return () => {
-      window.clearTimeout(timer);
+      cancelled = true;
       window.cancelAnimationFrame(frame);
     };
-  }, [stepId, relocate]);
+  }, [stepId]);
 
   useEffect(() => {
     window.addEventListener("resize", relocate);
@@ -107,12 +142,18 @@ export function WelcomeTour({ steps, onClose }: { steps: TourStep[]; onClose: (f
   }, [relocate]);
 
   useLayoutEffect(() => {
-    if (cardRef.current) setCardHeight(cardRef.current.offsetHeight);
-  }, [index, hole]);
+    if (!positioned || !cardRef.current) return;
+    const card = cardRef.current;
+    const measureCard = () => setCardHeight(card.offsetHeight);
+    measureCard();
+    const observer = new ResizeObserver(measureCard);
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [positioned, stepId]);
 
   useEffect(() => {
-    cardRef.current?.focus({ preventScroll: true });
-  }, [index]);
+    if (positioned) cardRef.current?.focus({ preventScroll: true });
+  }, [positioned, stepId]);
 
   const go = useCallback(
     (next: number) => {
@@ -146,11 +187,11 @@ export function WelcomeTour({ steps, onClose }: { steps: TourStep[]; onClose: (f
         <div
           aria-hidden="true"
           data-testid="tour-spotlight"
-          className="pointer-events-none absolute rounded-[16px] ring-2 ring-primary shadow-[0_0_0_9999px_rgba(0,0,0,0.66)] motion-safe:transition-all motion-safe:duration-300"
+          className="pointer-events-none absolute rounded-[16px] ring-2 ring-primary shadow-[0_0_0_9999px_rgba(0,0,0,0.66)]"
           style={{ top: hole.top, left: hole.left, width: hole.width, height: hole.height }}
         />
       )}
-      <div
+      {positioned && <div
         ref={cardRef}
         role="dialog"
         aria-modal="true"
@@ -159,7 +200,7 @@ export function WelcomeTour({ steps, onClose }: { steps: TourStep[]; onClose: (f
         tabIndex={-1}
         data-testid="tour-card"
         data-step={step.id}
-        className="absolute rounded-2xl border bg-popover p-5 text-popover-foreground shadow-2xl outline-none motion-safe:transition-[top,left] motion-safe:duration-300"
+        className="absolute max-h-[calc(100dvh-32px)] overflow-y-auto rounded-2xl border bg-popover p-5 text-popover-foreground shadow-2xl outline-none"
         style={{ top: place.top, left: place.left, width: place.width }}
       >
         <div className="flex items-center justify-between gap-3">
@@ -206,7 +247,7 @@ export function WelcomeTour({ steps, onClose }: { steps: TourStep[]; onClose: (f
             {last ? "Começar" : index === 0 ? "Mostrar" : "Próximo"}
           </Button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -222,7 +263,7 @@ export function SamplePlan() {
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">Serviço de exemplo</p>
-          <p className="text-xs text-muted-foreground">Toque no ícone para editar o link</p>
+          <p className="text-xs text-muted-foreground">Logo apenas para identificação</p>
         </div>
         <p className="text-sm font-semibold">R$ 29,90</p>
       </div>

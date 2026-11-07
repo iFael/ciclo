@@ -6,14 +6,14 @@ const saved = {
   url: process.env.NEXT_PUBLIC_SUPABASE_URL,
   key: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   anon: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  e2e: process.env.CICLO_E2E,
+  e2e: process.env.RECONTEI_E2E,
 };
 
 afterEach(() => {
   restore("NEXT_PUBLIC_SUPABASE_URL", saved.url);
   restore("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", saved.key);
   restore("NEXT_PUBLIC_SUPABASE_ANON_KEY", saved.anon);
-  restore("CICLO_E2E", saved.e2e);
+  restore("RECONTEI_E2E", saved.e2e);
 });
 
 function restore(name: string, value: string | undefined) {
@@ -25,7 +25,7 @@ function unsigned() {
   delete process.env.NEXT_PUBLIC_SUPABASE_URL;
   delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  delete process.env.CICLO_E2E;
+  delete process.env.RECONTEI_E2E;
 }
 
 async function statusOf(url: string, method = "GET") {

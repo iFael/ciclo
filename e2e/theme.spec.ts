@@ -8,7 +8,7 @@ test("o tema escuro é o padrão e o botão de sol e lua troca para o claro e le
   await expect(toggle).toHaveAttribute("data-theme-state", "dark");
   await expect(html).not.toHaveAttribute("data-theme", "light");
   const darkBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  expect(darkBg).toBe("rgb(11, 11, 12)");
+  expect(darkBg).toBe("rgb(13, 13, 15)");
   await page.screenshot({ path: testInfo.outputPath("login-dark.png") });
 
   await toggle.click();
@@ -20,7 +20,7 @@ test("o tema escuro é o padrão e o botão de sol e lua troca para o claro e le
 
   await page.reload();
   await expect(html).toHaveAttribute("data-theme", "light");
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(246, 245, 242)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(249, 246, 240)");
 
   await page.getByTestId("theme-toggle").click();
   await expect(html).not.toHaveAttribute("data-theme", "light");

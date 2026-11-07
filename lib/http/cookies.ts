@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { LAST_SEEN_COOKIE } from "@/lib/security";
+import { LAST_SEEN_COOKIE, LEGACY_LAST_SEEN_COOKIE } from "@/lib/security";
 
 const MONTH = 30 * 24 * 60 * 60;
 
@@ -26,6 +26,7 @@ export function applyAuthCookies(response: NextResponse, cookies: PendingCookie[
 }
 
 export function rememberSession(response: NextResponse, secure: boolean): void {
+  response.cookies.set(LEGACY_LAST_SEEN_COOKIE, "", { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 0 });
   response.cookies.set(LAST_SEEN_COOKIE, String(Date.now()), {
     httpOnly: true,
     secure,
@@ -36,6 +37,7 @@ export function rememberSession(response: NextResponse, secure: boolean): void {
 }
 
 export function forgetSession(response: NextResponse, secure: boolean): void {
+  response.cookies.set(LEGACY_LAST_SEEN_COOKIE, "", { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 0 });
   response.cookies.set(LAST_SEEN_COOKIE, "", {
     httpOnly: true,
     secure,

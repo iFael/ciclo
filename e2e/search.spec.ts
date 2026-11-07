@@ -105,6 +105,7 @@ test("a busca no extrato agrupa por comerciante e marca como assinatura", async 
     await page.getByTestId("search-confirm").first().click();
     await expect(page.getByTestId("search-group").nth(0)).toContainText("Já é plano");
     await page.keyboard.press("Escape");
+    await page.getByTestId(viewport.width >= 1024 ? "nav-assinaturas" : "nav-mobile-assinaturas").click();
     await expect(page.getByTestId("plan-name").filter({ hasText: "Gran Faculdade" })).toBeVisible();
     expect(confirmed).toBe(true);
     confirmed = false;
@@ -152,6 +153,8 @@ test("vincula pagamentos Pix com descrições distintas ao plano existente, apen
   await page.getByTestId("search-charge-select").nth(2).check();
   await page.getByTestId("search-target-plan").selectOption("chatgpt");
   await page.getByTestId("search-link-plan").click();
+  await page.keyboard.press("Escape");
+  await page.getByTestId("nav-mobile-assinaturas").click();
   await expect(page.getByTestId("plan-card").first()).toContainText("19/10");
   expect(linked).toBe(true);
 });

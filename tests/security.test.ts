@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildScreen } from "@/lib/screen";
-import { endAllSessions, safeLog, sessionExpired } from "@/lib/security";
+import { endAllSessions, safeLog, sessionExpired, LAST_SEEN_COOKIE, LEGACY_LAST_SEEN_COOKIE } from "@/lib/security";
 import { emptyState } from "@/lib/store";
 import type { Connection, Subscription } from "@/lib/types";
 
@@ -22,6 +22,8 @@ describe("security", () => {
     const day = 24 * 60 * 60 * 1000;
     expect(sessionExpired(now - 30 * day, now)).toBe(true);
     expect(sessionExpired(now - 30 * day + 1, now)).toBe(false);
+    expect(LAST_SEEN_COOKIE).toBe("recontei_last_seen");
+    expect(LEGACY_LAST_SEEN_COOKIE).toBe("ciclo_last_seen");
     let scope = "";
     await endAllSessions({
       auth: {

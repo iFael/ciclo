@@ -52,7 +52,7 @@ describe("confirm and callback routes", () => {
     expect(verifyOtp).toHaveBeenCalledWith({ token_hash: "hash-1", type: "email" });
     expect(exchangeCodeForSession).not.toHaveBeenCalled();
     expect(response.headers.get("location")).toBe("https://ciclo-peach.vercel.app/");
-    expect(response.headers.get("set-cookie") ?? "").toContain("ciclo_last_seen");
+    expect(response.headers.get("set-cookie") ?? "").toContain("recontei_last_seen");
   });
 
   it("keeps the code exchange on /auth/callback for the default template", async () => {

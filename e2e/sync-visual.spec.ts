@@ -104,8 +104,8 @@ test("o botão e o aviso de sucesso no celular e no desktop", async ({
     before.syncedAt = new Date(Date.now() - 20_000).toISOString();
     const size = viewport.width === 390 ? "mobile" : "desktop";
     await page.addInitScript((theme) => {
-      if (theme === "light") localStorage.setItem("ciclo-theme", "light");
-      else localStorage.removeItem("ciclo-theme");
+      if (theme === "light") localStorage.setItem("recontei-theme", "light");
+      else localStorage.removeItem("recontei-theme");
     }, scheme);
     await page.setViewportSize(viewport);
     await page.goto("/");

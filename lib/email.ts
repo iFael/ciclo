@@ -7,7 +7,7 @@ export async function sendMail(message: { subject: string; text: string; html?: 
   const { Resend } = await import("resend");
   const resend = new Resend(key);
   const { error } = await resend.emails.send({
-    from: "Ciclo <onboarding@resend.dev>",
+    from: "Recontei <onboarding@resend.dev>",
     to,
     subject: message.subject,
     text: message.text,

@@ -139,45 +139,44 @@ test("confirmed cards show the last charge and suggestions show a confidence bar
   for (const [viewport, scheme] of shots) {
     const size = viewport.width === 390 ? "mobile" : "desktop";
     await page.addInitScript((theme) => {
-      if (theme === "light") localStorage.setItem("ciclo-theme", "light");
-      else localStorage.removeItem("ciclo-theme");
+      if (theme === "light") localStorage.setItem("recontei-theme", "light");
+      else localStorage.removeItem("recontei-theme");
     }, scheme);
     await page.setViewportSize(viewport);
     await page.goto("/?aba=assinaturas");
     await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
-    if (size === "mobile") {
-      await expect(page.getByTestId("tab-assinaturas")).toHaveText("Assinaturas (1)");
-      await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (3)");
-    } else {
-      await expect(page.getByRole("tablist")).toHaveCount(0);
-    }
+    await expect(page.getByTestId(size === "mobile" ? "recontei-bottom-nav" : "recontei-nav")).toBeVisible();
     await expect(page.getByTestId("next-charge")).toContainText("Última cobrança: 19/08");
     await expect(page.getByTestId("next-charge")).toContainText("Sem cobrança recente");
     await expect(page.getByTestId("next-charge")).not.toContainText("Próxima cobrança");
     await expect(page.getByTestId("plan-card").locator("img.logo")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`${size}-${scheme}-assinaturas.png`), fullPage: true });
 
-    if (size === "mobile") {
-      await expect(page.getByTestId("suggestion-peek")).toHaveCount(3);
-      await page.getByTestId("tab-sugestoes").click();
-    }
+    if (size === "mobile") await expect(page.getByTestId("suggestion-peek")).toHaveCount(3);
+    await page.getByTestId(size === "mobile" ? "nav-mobile-economia" : "nav-economia").click();
     await expect(page.getByTestId("panel-sugestoes")).toBeVisible();
     const cards = page.getByTestId("suggestion");
-    await expect(cards).toHaveCount(3);
-    await expect(cards.nth(0)).toContainText("Netflix Padrão");
-    await expect(cards.nth(0)).toContainText("Alta chance");
-    await expect(cards.nth(0)).toContainText("88%");
-    await expect(cards.nth(0)).toContainText("5 meses seguidos");
-    await expect(cards.nth(1)).toContainText("Suno");
-    await expect(cards.nth(2)).toContainText("Academia Fit");
-    await expect(cards.nth(2)).toContainText("parecido com o que você confirmou");
-    await expect(cards.first().locator("img.logo")).toBeVisible();
+    await expect(cards).toHaveCount(1);
+    await expect(page.getByTestId("suggestion-dot")).toHaveCount(3);
+    await expect(cards).toContainText("Netflix Padrão");
+    await expect(cards).toContainText("Alta chance");
+    await expect(cards).toContainText("88%");
+    await expect(cards).toContainText("5 meses seguidos");
+    await page.getByTestId("suggestion-next").click();
+    await expect(cards).toContainText("Suno");
+    await page.getByTestId("suggestion-next").click();
+    await expect(cards).toContainText("Academia Fit");
+    await expect(cards).toContainText("parecido com o que você confirmou");
+    await expect(page.getByTestId("suggestion-position")).toHaveText("3 de 3");
+    await expect(cards.locator("img.logo")).toHaveCount(0);
+    await page.getByTestId("suggestion-dot").first().click();
+    await expect(cards.locator("img.logo")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`${size}-${scheme}-sugestoes.png`), fullPage: true });
   }
 
-  await page.getByTestId("change-logo").first().click();
-  await expect(page.getByTestId("plan-edit-form")).toBeVisible();
-  await expect(page.getByLabel("Link do botão Gerenciar")).toBeFocused();
-  await page.getByTestId("change-logo").first().click();
+  await page.getByTestId("nav-assinaturas").click();
+  await expect(page.getByTestId("plan-logo")).toHaveCount(1);
+  await page.getByTestId("plan-logo").click();
   await expect(page.getByTestId("plan-edit-form")).toHaveCount(0);
+  await expect(page.getByTestId("manage")).toBeVisible();
 });

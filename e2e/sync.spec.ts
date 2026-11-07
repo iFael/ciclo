@@ -126,7 +126,8 @@ test("a sincronização automática dispara ao abrir e avisa só quando há suge
   await expect(page.getByTestId("sync-toast")).toContainText(
     "3 novas sugestões",
   );
-  await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (3)");
+  await page.getByTestId("nav-mobile-economia").click();
+  await expect(page.getByTestId("suggestion-dot")).toHaveCount(3);
   await expect(page.getByTestId("footer-sync")).toHaveText(
     "Atualizado há menos de 1 h",
   );
@@ -270,7 +271,8 @@ test("sincronizar agora mostra o aviso e atualiza os planos sem recarregar", asy
   await expect(page.getByTestId("sync-toast")).toContainText(
     "3 novas sugestões",
   );
-  await expect(page.getByTestId("tab-sugestoes")).toHaveText("Sugestões (3)");
+  await page.getByTestId("nav-mobile-economia").click();
+  await expect(page.getByTestId("suggestion-dot")).toHaveCount(3);
   await expect(page.getByTestId("footer-sync")).toHaveText(
     "Atualizado há menos de 1 h",
   );
